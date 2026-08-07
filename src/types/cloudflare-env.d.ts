@@ -4,7 +4,8 @@ declare global {
   interface CloudflareEnv {
     DB?: AuthDatabase;
     BETTER_AUTH_SECRET?: string;
-    MAGIC_LINK_EMAIL_TRANSPORT?: string;
+    RESEND_API_KEY?: string;
+    AUTH_EMAIL_FROM?: string;
   }
 }
 

@@ -3,19 +3,29 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   AUTH_BASE_URL,
+  AUTH_EMAIL_FROM_NAME,
   AUTH_METHOD,
   AUTH_TABLES,
   AUTH_TRUSTED_ORIGINS,
   AuthConfigurationError,
+  RECOMMENDED_AUTH_EMAIL_DOMAIN,
+  RECOMMENDED_AUTH_EMAIL_FROM,
+  RESEND_API_KEY_NAME,
   assertProductionEmailTransport,
   isTrustedCallbackURL,
   isTrustedAuthOrigin,
   productionEmailTransportReady,
+  resolveAuthEmailFrom,
   resolveBetterAuthSecret,
+  resolveResendApiKey,
   validateLoginEmail,
 } from "../src/lib/auth/config.ts";
 import {
+  AUTH_EMAIL_SUBJECT,
+  RESEND_EMAIL_ENDPOINT,
+  buildMagicLinkEmailBody,
   clearDevMagicLinkDeliveries,
+  sendAuthMagicLinkEmail,
   getDevMagicLinkDeliveries,
   sendMagicLinkEmail,
 } from "../src/lib/auth/email.ts";
@@ -41,6 +51,21 @@ const session: AuthSession = {
 };
 
 const read = (path: string) => readFileSync(path, "utf8");
+const productionEnv = {
+  BETTER_AUTH_SECRET: "production-secret",
+  RESEND_API_KEY: "test-resend-api-key",
+  AUTH_EMAIL_FROM: "GroBiggis <login@auth.grobiggis.se>",
+};
+
+function mockFetch(response: Response = new Response(JSON.stringify({ id: "email-id" }), { status: 200 })) {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    return response;
+  };
+
+  return { calls, fetcher: fetcher as typeof fetch };
+}
 
 test("auth config uses the DB binding database object", () => {
   const options = createGroBiggisAuthOptions(fakeDatabase, { BETTER_AUTH_SECRET: "test-secret" }, "test");
@@ -119,12 +144,19 @@ test("dev email transport captures magic links only outside production", async (
   assert.equal(getDevMagicLinkDeliveries().length, 1);
 });
 
+test("development transport works without Resend configuration", async () => {
+  clearDevMagicLinkDeliveries();
+  await sendMagicLinkEmail({ email: "odlare@example.com", token: "dev-token", url: "http://localhost:3000/link?token=dev-token" }, {}, "development");
+
+  assert.deepEqual(getDevMagicLinkDeliveries().map((delivery) => delivery.email), ["odlare@example.com"]);
+});
+
 test("production email transport never captures dev links", async () => {
   clearDevMagicLinkDeliveries();
 
   await assert.rejects(
     () => sendMagicLinkEmail({ email: "odlare@example.com", token: "secret-token", url: "https://v2.grobiggis.se/link?token=secret-token" }, {}, "production"),
-    /production magic-link email transport/i,
+    /RESEND_API_KEY/,
   );
   assert.equal(getDevMagicLinkDeliveries().length, 0);
 });
@@ -140,6 +172,186 @@ test("development configuration uses a local-only secret fallback", () => {
 test("production configuration requires real email transport before magic link send", () => {
   assert.equal(productionEmailTransportReady({}), false);
   assert.throws(() => assertProductionEmailTransport({}, "production"), AuthConfigurationError);
+  assert.equal(productionEmailTransportReady(productionEnv), true);
+});
+
+test("production transport requires RESEND_API_KEY", async () => {
+  const { fetcher } = mockFetch();
+
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+        { AUTH_EMAIL_FROM: productionEnv.AUTH_EMAIL_FROM },
+        fetcher,
+      ),
+    /RESEND_API_KEY/,
+  );
+});
+
+test("production transport requires AUTH_EMAIL_FROM", async () => {
+  const { fetcher } = mockFetch();
+
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+        { RESEND_API_KEY: productionEnv.RESEND_API_KEY },
+        fetcher,
+      ),
+    /AUTH_EMAIL_FROM/,
+  );
+});
+
+test("production config resolves explicit Resend settings", () => {
+  assert.equal(resolveResendApiKey(productionEnv, "production"), productionEnv.RESEND_API_KEY);
+  assert.equal(resolveAuthEmailFrom(productionEnv, "production"), productionEnv.AUTH_EMAIL_FROM);
+  assert.throws(() => resolveResendApiKey({}, "production"), AuthConfigurationError);
+  assert.throws(() => resolveAuthEmailFrom({}, "production"), AuthConfigurationError);
+  assert.equal(RESEND_API_KEY_NAME, "RESEND_API_KEY");
+  assert.equal(AUTH_EMAIL_FROM_NAME, "AUTH_EMAIL_FROM");
+});
+
+test("Resend request uses the HTTPS endpoint and configured Authorization header", async () => {
+  const { calls, fetcher } = mockFetch();
+
+  await sendAuthMagicLinkEmail(
+    { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+    productionEnv,
+    fetcher,
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, RESEND_EMAIL_ENDPOINT);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal((calls[0].init.headers as Record<string, string>).Authorization, `Bearer ${productionEnv.RESEND_API_KEY}`);
+});
+
+test("Resend request body uses configured sender, recipient and Grobiggis copy", async () => {
+  const { calls, fetcher } = mockFetch();
+
+  await sendAuthMagicLinkEmail(
+    { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+    productionEnv,
+    fetcher,
+  );
+
+  const body = JSON.parse(String(calls[0].init.body));
+  assert.equal(body.from, productionEnv.AUTH_EMAIL_FROM);
+  assert.deepEqual(body.to, ["odlare@example.com"]);
+  assert.equal(body.subject, AUTH_EMAIL_SUBJECT);
+  assert.match(body.text, /Grobiggis/);
+  assert.match(body.html, /Logga in på Grobiggis/);
+});
+
+test("provider 4xx and 5xx errors are sanitized", async () => {
+  const url = "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token";
+
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "odlare@example.com", url },
+        productionEnv,
+        mockFetch(new Response("provider mentions test-resend-api-key and secret-token", { status: 500 })).fetcher,
+      ),
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /status 500/);
+      assert.doesNotMatch(error.message, /test-resend-api-key|secret-token|magic-link\/verify/);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "odlare@example.com", url },
+        productionEnv,
+        mockFetch(new Response("bad request", { status: 400 })).fetcher,
+      ),
+    /status 400/,
+  );
+});
+
+test("production email send does not log API keys or magic-link URLs", async () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  const originalInfo = console.info;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+
+  console.log = (...values: unknown[]) => logs.push(values.join(" "));
+  console.info = (...values: unknown[]) => logs.push(values.join(" "));
+  console.warn = (...values: unknown[]) => logs.push(values.join(" "));
+  console.error = (...values: unknown[]) => logs.push(values.join(" "));
+
+  try {
+    await sendAuthMagicLinkEmail(
+      { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+      productionEnv,
+      mockFetch().fetcher,
+    );
+  } finally {
+    console.log = originalLog;
+    console.info = originalInfo;
+    console.warn = originalWarn;
+    console.error = originalError;
+  }
+
+  assert.equal(logs.join("\n"), "");
+});
+
+test("provider response is not stored in auth tables by the transport", async () => {
+  const { fetcher } = mockFetch(new Response(JSON.stringify({ id: "provider-email-id" }), { status: 200 }));
+
+  await sendAuthMagicLinkEmail(
+    { to: "odlare@example.com", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+    productionEnv,
+    fetcher,
+  );
+
+  const schema = read("src/db/schema.ts");
+  assert.doesNotMatch(schema, /provider-email-id|resendEmailId|email_delivery/i);
+});
+
+test("magic-link recipient and URL are validated before provider calls", async () => {
+  const invalidEmail = mockFetch();
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "inte en epost", url: "https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token" },
+        productionEnv,
+        invalidEmail.fetcher,
+      ),
+    /recipient email is invalid/,
+  );
+  assert.equal(invalidEmail.calls.length, 0);
+
+  const untrustedUrl = mockFetch();
+  await assert.rejects(
+    () =>
+      sendAuthMagicLinkEmail(
+        { to: "odlare@example.com", url: "https://evil.example/api/auth/magic-link/verify?token=secret-token" },
+        productionEnv,
+        untrustedUrl.fetcher,
+      ),
+    /origin is not trusted/,
+  );
+  assert.equal(untrustedUrl.calls.length, 0);
+});
+
+test("email template remains small and Grobiggis-specific", () => {
+  const body = buildMagicLinkEmailBody("https://v2.grobiggis.se/api/auth/magic-link/verify?token=secret-token");
+
+  assert.equal(body.subject, "Logga in på Grobiggis");
+  assert.match(body.text, /ignorera mejlet/);
+  assert.match(body.html, /Logga in på Grobiggis/);
+  assert.doesNotMatch(`${body.text}\n${body.html}`, /profil|newsletter|community/i);
+});
+
+test("recommended sender domain stays explicit but uncommitted", () => {
+  assert.equal(RECOMMENDED_AUTH_EMAIL_DOMAIN, "auth.grobiggis.se");
+  assert.equal(RECOMMENDED_AUTH_EMAIL_FROM, "GroBiggis <login@auth.grobiggis.se>");
 });
 
 test("logout and session flow are connected through Better Auth client", () => {
@@ -174,10 +386,11 @@ test("no Sites session or identity-link implementation exists in V2", () => {
   const source = [
     read("src/lib/auth/server.ts"),
     read("src/lib/auth/config.ts"),
+    read("src/lib/auth/email.ts"),
     read("migrations/0001_awesome_enchantress.sql"),
   ].join("\n");
 
-  assert.doesNotMatch(source, /Sites|identity[_-]?link|legacy/i);
+  assert.doesNotMatch(source, /Sites|identity[_-]?link|legacy|odlingsguiden|old_resend/i);
 });
 
 test("no old auth table names are introduced", () => {

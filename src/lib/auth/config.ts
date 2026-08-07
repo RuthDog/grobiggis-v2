@@ -7,8 +7,11 @@ export const AUTH_TRUSTED_ORIGINS = [
 ] as const;
 export const AUTH_TABLES = ["user", "session", "account", "verification"] as const;
 export const AUTH_METHOD = "magic-link" as const;
-export const AUTH_EMAIL_TRANSPORT_SECRET = "MAGIC_LINK_EMAIL_TRANSPORT";
 export const BETTER_AUTH_SECRET_NAME = "BETTER_AUTH_SECRET";
+export const RESEND_API_KEY_NAME = "RESEND_API_KEY";
+export const AUTH_EMAIL_FROM_NAME = "AUTH_EMAIL_FROM";
+export const RECOMMENDED_AUTH_EMAIL_DOMAIN = "auth.grobiggis.se";
+export const RECOMMENDED_AUTH_EMAIL_FROM = `GroBiggis <login@${RECOMMENDED_AUTH_EMAIL_DOMAIN}>`;
 
 const DEV_ONLY_SECRET = "grobiggis-v2-dev-only-better-auth-secret";
 
@@ -51,12 +54,26 @@ export function resolveBetterAuthSecret(env: AuthRuntimeEnv = process.env, mode 
   return DEV_ONLY_SECRET;
 }
 
+export function resolveResendApiKey(env: AuthRuntimeEnv = process.env, mode = runtimeMode()) {
+  const apiKey = env[RESEND_API_KEY_NAME];
+  if (apiKey) return apiKey;
+  if (mode === "production") throw new AuthConfigurationError(`${RESEND_API_KEY_NAME} must be configured in production.`);
+  return undefined;
+}
+
+export function resolveAuthEmailFrom(env: AuthRuntimeEnv = process.env, mode = runtimeMode()) {
+  const from = env[AUTH_EMAIL_FROM_NAME];
+  if (from) return from;
+  if (mode === "production") throw new AuthConfigurationError(`${AUTH_EMAIL_FROM_NAME} must be configured in production.`);
+  return undefined;
+}
+
 export function productionEmailTransportReady(env: AuthRuntimeEnv = process.env) {
-  return env[AUTH_EMAIL_TRANSPORT_SECRET] === "configured";
+  return Boolean(env[RESEND_API_KEY_NAME] && env[AUTH_EMAIL_FROM_NAME]);
 }
 
 export function assertProductionEmailTransport(env: AuthRuntimeEnv = process.env, mode = runtimeMode()) {
   if (mode === "production" && !productionEmailTransportReady(env)) {
-    throw new AuthConfigurationError("A production magic-link email transport must be configured before sending login links.");
+    throw new AuthConfigurationError(`${RESEND_API_KEY_NAME} and ${AUTH_EMAIL_FROM_NAME} must be configured before sending login links.`);
   }
 }

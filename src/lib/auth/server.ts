@@ -47,8 +47,8 @@ function stringBindings(env: CloudflareEnv): AuthRuntimeEnv {
   return {
     ...process.env,
     BETTER_AUTH_SECRET: typeof env.BETTER_AUTH_SECRET === "string" ? env.BETTER_AUTH_SECRET : process.env.BETTER_AUTH_SECRET,
-    MAGIC_LINK_EMAIL_TRANSPORT:
-      typeof env.MAGIC_LINK_EMAIL_TRANSPORT === "string" ? env.MAGIC_LINK_EMAIL_TRANSPORT : process.env.MAGIC_LINK_EMAIL_TRANSPORT,
+    RESEND_API_KEY: typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : process.env.RESEND_API_KEY,
+    AUTH_EMAIL_FROM: typeof env.AUTH_EMAIL_FROM === "string" ? env.AUTH_EMAIL_FROM : process.env.AUTH_EMAIL_FROM,
   };
 }
 
