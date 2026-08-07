@@ -2,7 +2,7 @@
 
 Detta repository innehåller GroBiggis V2.
 
-Version 0.1 utökar den rena tekniska grunden med OpenNext Cloudflare-adaptern och en minimal Wrangler-konfiguration för en framtida Worker. Syftet är att lokalt verifiera både den vanliga Next.js-builden och en Cloudflare Workers-kompatibel OpenNext-build.
+Version 0.2 innehåller en verifierad OpenNext-build och den första verifierade deploymenten till Cloudflare Workers. `workers.dev` används som den första testmiljön.
 
 ## Lokal utveckling
 
@@ -41,8 +41,10 @@ Bygg OpenNext-versionen lokalt:
 npm run build:cf
 ```
 
-## Avgränsning för Version 0.1
+## Version 0.2
 
-Version 0.1 innehåller Next.js, OpenNext Cloudflare-adaptern, Wrangler-konfiguration för en framtida Worker och stöd för lokal OpenNext-build.
+OpenNext-builden och Cloudflare Workers-deploymenten är verifierade. Testmiljön finns på:
 
-Ingen deployment har gjorts och ingen Worker eller workers.dev-adress har skapats. Versionen innehåller inte D1, annan databas, auth, produktfunktioner, externa tjänster, miljövariabler eller secrets.
+`https://grobiggis-v2.ola-fischer85.workers.dev`
+
+`v2.grobiggis.se` är ännu inte kopplad. Versionen innehåller inte D1, annan databas, auth eller produktfunktioner.
