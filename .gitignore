@@ -15,7 +15,11 @@
 
 # next.js
 /.next/
+/.open-next/
 /out/
+
+# local Cloudflare tooling
+/.wrangler/
 
 # production
 /build

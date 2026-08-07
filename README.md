@@ -2,7 +2,7 @@
 
 Detta repository innehåller GroBiggis V2.
 
-Version 0 etablerar en ren lokal teknisk grund med Next.js, TypeScript, App Router, Tailwind CSS, ESLint och npm. Syftet är att verifiera att den nya applikationen kan installeras, lintas och byggas lokalt innan någon vidare produktfunktionalitet läggs till.
+Version 0.1 utökar den rena tekniska grunden med OpenNext Cloudflare-adaptern och en minimal Wrangler-konfiguration för en framtida Worker. Syftet är att lokalt verifiera både den vanliga Next.js-builden och en Cloudflare Workers-kompatibel OpenNext-build.
 
 ## Lokal utveckling
 
@@ -35,8 +35,14 @@ Bygg produktionen lokalt:
 npm run build
 ```
 
-## Avgränsning för Version 0
+Bygg OpenNext-versionen lokalt:
 
-Version 0 innehåller inte OpenNext, Cloudflare, Wrangler, Workers, workers.dev, D1 eller någon annan databas. Den innehåller inte auth, API-routes, produktinriktade server actions, externa tjänster, miljövariabler eller secrets.
+```powershell
+npm run build:cf
+```
 
-Ingen deploymentkonfiguration ingår i detta steg.
+## Avgränsning för Version 0.1
+
+Version 0.1 innehåller Next.js, OpenNext Cloudflare-adaptern, Wrangler-konfiguration för en framtida Worker och stöd för lokal OpenNext-build.
+
+Ingen deployment har gjorts och ingen Worker eller workers.dev-adress har skapats. Versionen innehåller inte D1, annan databas, auth, produktfunktioner, externa tjänster, miljövariabler eller secrets.
