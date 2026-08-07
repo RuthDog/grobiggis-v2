@@ -22,7 +22,7 @@ export function PlantLibrary() {
             Den statiska katalogen i GroBiggis V2.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-[var(--muted)]">
-            Sök lokalt bland de befintliga växterna. Inga konton, API:er eller databaser behövs i Version 1.0.
+            Sök lokalt bland de befintliga växterna. Katalogen är fortfarande statisk och gör inga API-anrop i Version 2.2.
           </p>
         </div>
 

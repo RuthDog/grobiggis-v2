@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { AuthNav } from "@/components/AuthNav";
 import { BRAND } from "@/config/brand";
 import { GrowingSessionProvider } from "@/state/growing-session";
 
@@ -46,6 +47,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                   </Link>
                 );
               })}
+              <AuthNav />
             </nav>
           </div>
         </header>

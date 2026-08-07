@@ -10,7 +10,7 @@ export default function Home() {
     <main>
       <section className="mx-auto grid min-h-[calc(100vh-80px)] w-full max-w-7xl gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.72fr)] lg:items-center lg:py-16">
         <div>
-          <p className="text-sm font-bold uppercase text-[var(--moss)]">Version 1.0</p>
+          <p className="text-sm font-bold uppercase text-[var(--moss)]">Version 2.2</p>
           <h1 className="mt-4 max-w-4xl text-5xl font-semibold leading-[1.02] sm:text-6xl lg:text-7xl">
             {BRAND.appName}
           </h1>
@@ -39,10 +39,10 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-5 text-sm text-[var(--muted)]">
-            V2 är under utveckling och innehåller ännu inte konto, databas, väder, AI eller permanent sparade odlingar.
+            V2 är under utveckling och har nu konto- och D1-grund, men ingen permanent sparad odlingsdata, väder eller AI.
           </p>
           <p className="mt-3 text-sm text-[var(--muted)]">
-            Version 1.3 låter dig starta en odlingsomgång i minnet och se den i Min plan tills sidan laddas om.
+            Min plan låter dig fortfarande starta en odlingsomgång i minnet och se den tills sidan laddas om.
           </p>
         </div>
 
