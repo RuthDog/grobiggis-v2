@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cream: #f8f6ee;
+  --paper: #fffefa;
+  --forest: #194538;
+  --moss: #5b806f;
+  --sage: #dce8dc;
+  --sage-light: #edf4ea;
+  --apricot: #f1c58d;
+  --muted: #65756d;
+  --line: #dce5db;
+  --focus: rgba(221, 170, 99, 0.42);
+  --background: var(--cream);
+  --foreground: var(--forest);
 }
 
 @theme inline {
@@ -13,5 +23,26 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--apricot);
 }
