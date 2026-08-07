@@ -29,6 +29,9 @@ export default function Home() {
           <p className="mt-5 text-sm text-[var(--muted)]">
             V2 är under utveckling och innehåller ännu inte konto, databas, väder eller AI.
           </p>
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Version 1.1 lägger också till rena kunskapsguider under Tips & kunskap.
+          </p>
         </div>
 
         <aside

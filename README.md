@@ -2,7 +2,7 @@
 
 Detta repository innehåller GroBiggis V2.
 
-Version 1.0 är den första produktmigreringen efter att den nya infrastrukturen verifierats. Den innehåller Grobiggis visuella identitet, ett rent appskal, den befintliga statiska växtkatalogen, ett Växtbibliotek och lokal sökning bland växterna.
+Version 1.1 innehåller Grobiggis visuella identitet, ett rent appskal, den befintliga statiska växtkatalogen, ett Växtbibliotek, lokal växtsökning och produktområdet Tips & kunskap.
 
 V2 innehåller fortfarande ingen databas, auth, API-routes eller serverlagrad produktdata. `v2.grobiggis.se` är testmiljön för den nya versionen.
 
@@ -49,10 +49,12 @@ Bygg OpenNext-versionen lokalt:
 npm run build:cf
 ```
 
-## Version 1.0
+## Version 1.1
 
 OpenNext-builden och Cloudflare Workers-deploymenten är verifierade. Testmiljön finns på:
 
 `https://grobiggis-v2.ola-fischer85.workers.dev`
 
 `https://v2.grobiggis.se`
+
+Version 1.1 migrerar 8 granskade guider till statiska artikelsidor under `/tips`. Tips & kunskap har lokal sökning, kategorifilter, källredovisning och relaterade guider baserade på befintlig kategori- och växtmetadata.

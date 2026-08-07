@@ -8,6 +8,7 @@ import { BRAND } from "@/config/brand";
 const navigation = [
   { href: "/", label: "Start" },
   { href: "/vaxtbibliotek", label: "Växtbibliotek" },
+  { href: "/tips", label: "Tips & kunskap" },
 ];
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {

@@ -1,11 +1,7 @@
 import type { CatalogPlant } from "@/data/plant-types";
+import { normalizeSearchText } from "./text-search.ts";
 
-export const normalizePlantSearch = (value: string) =>
-  value
-    .trim()
-    .toLocaleLowerCase("sv-SE")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "");
+export const normalizePlantSearch = normalizeSearchText;
 
 export function searchableCatalogPlants(plants: CatalogPlant[], query: string) {
   const needle = normalizePlantSearch(query);
