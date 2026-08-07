@@ -25,12 +25,24 @@ export default function Home() {
             >
               Öppna Växtbibliotek
             </Link>
+            <Link
+              className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+              href="/min-plan"
+            >
+              Gå till Min plan
+            </Link>
+            <Link
+              className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+              href="/tips"
+            >
+              Läs Tips & kunskap
+            </Link>
           </div>
           <p className="mt-5 text-sm text-[var(--muted)]">
-            V2 är under utveckling och innehåller ännu inte konto, databas, väder eller AI.
+            V2 är under utveckling och innehåller ännu inte konto, databas, väder, AI eller permanent sparade odlingar.
           </p>
           <p className="mt-3 text-sm text-[var(--muted)]">
-            Version 1.1 lägger också till rena kunskapsguider under Tips & kunskap.
+            Version 1.3 låter dig starta en odlingsomgång i minnet och se den i Min plan tills sidan laddas om.
           </p>
         </div>
 

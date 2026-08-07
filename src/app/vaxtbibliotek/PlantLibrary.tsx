@@ -2,11 +2,14 @@
 
 import { useId, useMemo, useState } from "react";
 import { PlantCard } from "@/components/PlantCard";
+import type { CatalogPlant } from "@/data/plant-types";
 import { plants } from "@/data/plants";
 import { searchableCatalogPlants } from "@/domain/plant-search";
+import { StartGrowingDialog } from "./StartGrowingDialog";
 
 export function PlantLibrary() {
   const [query, setQuery] = useState("");
+  const [selectedPlant, setSelectedPlant] = useState<CatalogPlant | undefined>();
   const searchId = useId();
   const results = useMemo(() => searchableCatalogPlants(plants, query), [query]);
 
@@ -44,7 +47,19 @@ export function PlantLibrary() {
       {results.length > 0 ? (
         <section aria-label="Växter" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {results.map((plant) => (
-            <PlantCard key={plant.id} plant={plant} />
+            <PlantCard
+              action={
+                <button
+                  className="min-h-11 w-full rounded-full bg-[var(--forest)] px-4 text-sm font-bold text-white shadow-[0_10px_22px_rgba(25,69,56,0.14)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+                  onClick={() => setSelectedPlant(plant)}
+                  type="button"
+                >
+                  Starta odling
+                </button>
+              }
+              key={plant.id}
+              plant={plant}
+            />
           ))}
         </section>
       ) : (
@@ -55,6 +70,7 @@ export function PlantLibrary() {
           </p>
         </section>
       )}
+      {selectedPlant ? <StartGrowingDialog onClose={() => setSelectedPlant(undefined)} plant={selectedPlant} /> : null}
     </div>
   );
 }
