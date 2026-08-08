@@ -2,9 +2,9 @@
 
 Detta repository innehåller GroBiggis V2.
 
-Version 2.2 innehåller Grobiggis visuella identitet, ett rent appskal, den befintliga statiska växtkatalogen, Växtbibliotek, Tips & kunskap, det första interaktiva odlingsflödet, en lokal D1/Drizzle-grund, en separat extern Cloudflare D1-databas och ett Better Auth-fundament för e-post/magic link. Version 2.2B förbereder production-email via Resend utan att aktivera externa credentials, DNS eller deployment.
+Version 2.3 innehåller Grobiggis visuella identitet, ett rent appskal, den befintliga statiska växtkatalogen, Växtbibliotek, Tips & kunskap, Better Auth med magic link, en separat extern Cloudflare D1-databas och D1-persistens för Min plan.
 
-V2 har fortfarande inget UI-flöde som skriver odlingsdata till databasen. Odlingsomgångar i appen ligger fortsatt i webbläsarens minne och försvinner vid omladdning. Version 2.2 lägger autharkitektur ovanpå Version 2.1: ett Better Auth `user.id`, en sessionstyp och magic-link som vald authmetod. Produktions-email och production secret är ännu inte aktiverade. `v2.grobiggis.se` är testmiljön för den nya versionen.
+V2 använder Better Auth `user.id` som enda ägarskapsnyckel för sparade odlingsomgångar. Server actions verifierar sessionen server-side innan de läser eller skriver `growing_batches` och `growing_events`. Ingen anonym persistens, localStorage eller gammal användarmigrering används. `v2.grobiggis.se` är testmiljön för den nya versionen.
 
 ## Lokal utveckling
 
@@ -83,9 +83,9 @@ Secrets får aldrig committas. Lokal utveckling använder fortsatt en dev-only t
 
 Rekommenderad Resend sending domain är en separat subdomän för konto-/authmail, till exempel `auth.grobiggis.se`, med framtida avsändare `GroBiggis <login@auth.grobiggis.se>`. Nästa externa steg är att skapa/verifiera domänen i Resend och lägga de DNS-poster Resend genererar, innan secrets och Worker-deploy hanteras separat.
 
-## Version 2.2
+## Version 2.3
 
-Version 2.2 är verifierad lokalt och redo för separat granskad remote-migration. Version 2.1 är fortsatt deployad på:
+Version 2.3 är verifierad lokalt och redo för separat godkänd deployment. Testmiljön finns på:
 
 `https://grobiggis-v2.ola-fischer85.workers.dev`
 
@@ -104,3 +104,5 @@ Version 2.1 skapar den separata externa Cloudflare D1-databasen `grobiggis-v2-db
 Version 2.2 etablerar ett enda authsystem för V2 med Better Auth `1.6.26`, samma V2-D1 (`grobiggis-v2-db`) och magic-link som enda inloggningsmetod. Auth-tabellerna är `user`, `session`, `account` och `verification`, separata från `growing_batches` och `growing_events`. Lokalt fångas magic links i en dev-only transport. Produktion kräver fortfarande `BETTER_AUTH_SECRET` och en riktig emailtransport innan magic-link kan skickas säkert från `v2.grobiggis.se`. Inga legacy-användare, Sites-sessioner eller gamla identiteter har migrerats.
 
 Version 2.2B färdigställer integrationsgränsen för production magic-link-email. Better Auths `sendMagicLink` anropar Grobiggis emailtransport, som i production använder Resends REST API med `RESEND_API_KEY` och `AUTH_EMAIL_FROM`. Providerfel saneras innan de lämnar transporten, och production loggar aldrig API key, token eller magic-link-URL. Resend-provider, domain verification, DNS, Cloudflare secrets och Worker deployment kräver separata godkännanden.
+
+Version 2.3 gör Min plan persistent för inloggade användare. Skapa, lista, detaljvisa och avsluta odlingsomgångar går via server actions som hämtar verifierad Better Auth-session och använder sessionens `user.id` mot `GrowingBatchRepository`. Klienten skickar bara växt, sort, starttyp och startdatum vid skapande, aldrig `userId`, id eller status. Framtida calculated planhändelser sparas inte i D1; de rekonstrueras från batchens fakta och växtkatalogens regler vid laddning. Faktiska historikhändelser och avslutad status läses från D1. Min plan använder inte localStorage, sessionStorage, IndexedDB, anonym persistens eller gamla Grobiggis-användare.

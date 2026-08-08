@@ -6,7 +6,7 @@ import { PlantVisual } from "@/components/PlantVisual";
 import type { CatalogPlant } from "@/data/plant-types";
 import { startTypeLabels } from "@/domain/growing-display";
 import type { GrowingStartType } from "@/domain/growing-types";
-import { useGrowingSession } from "@/state/growing-session";
+import { createGrowingBatchAction } from "@/lib/growing/actions";
 
 const startTypes: GrowingStartType[] = ["seed", "direct", "purchased", "divided", "established"];
 
@@ -17,11 +17,11 @@ export function StartGrowingDialog({
   onClose,
 }: Readonly<{ plant: CatalogPlant; onClose: () => void }>) {
   const router = useRouter();
-  const { createBatch } = useGrowingSession();
   const [variety, setVariety] = useState("");
   const [startType, setStartType] = useState<GrowingStartType>("seed");
   const [startDate, setStartDate] = useState(today);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const titleId = useId();
   const varietyId = useId();
   const startTypeId = useId();
@@ -35,20 +35,30 @@ export function StartGrowingDialog({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!startDate) {
       setError("Välj ett startdatum.");
       return;
     }
 
-    const batch = createBatch({
+    setSaving(true);
+    setError("");
+    const result = await createGrowingBatchAction({
       plantId: plant.id,
       variety,
       startType,
       startDate,
     });
-    router.push(`/min-plan/${batch.id}`);
+    setSaving(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    router.push(`/min-plan/${result.batchId}`);
+    router.refresh();
   };
 
   return (
@@ -129,16 +139,18 @@ export function StartGrowingDialog({
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               className="min-h-12 rounded-full border border-[color:var(--line)] bg-white px-5 text-sm font-bold focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+              disabled={saving}
               onClick={onClose}
               type="button"
             >
               Avbryt
             </button>
             <button
-              className="min-h-12 rounded-full bg-[var(--forest)] px-5 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+              className="min-h-12 rounded-full bg-[var(--forest)] px-5 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
               type="submit"
             >
-              Skapa odlingsomgång
+              {saving ? "Sparar..." : "Skapa odlingsomgång"}
             </button>
           </div>
         </form>

@@ -14,7 +14,7 @@ import { sendMagicLinkEmail } from "./email.ts";
 
 export type AuthDatabase = NonNullable<BetterAuthOptions["database"]>;
 export type AuthSession = {
-  user: { id: string; email: string; name?: string | null };
+  user: { id: string; email?: string | null; name?: string | null };
   session: { id: string; userId: string };
 };
 

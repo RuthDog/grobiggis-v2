@@ -1,48 +1,52 @@
-"use client";
-
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { notFound } from "next/navigation";
+import { CompleteBatchControl } from "@/components/CompleteBatchControl";
 import { PlantVisual } from "@/components/PlantVisual";
 import { PlanTimeline } from "@/components/PlanTimeline";
 import { plants } from "@/data/plants";
 import { batchDisplayName, batchStartLabel, batchStatusLabel, startTypeLabel } from "@/domain/growing-display";
 import { planBatch } from "@/domain/growing-plan";
 import { formatSwedishDateRange } from "@/domain/plan-presentation";
-import { useGrowingSession } from "@/state/growing-session";
+import { getCurrentUserGrowingBatch } from "@/lib/growing/server";
 
-export default function BatchDetailPage() {
-  const params = useParams<{ batchId: string }>();
-  const router = useRouter();
-  const { completeBatch, findBatch } = useGrowingSession();
-  const [confirming, setConfirming] = useState(false);
-  const batch = findBatch(params.batchId);
+export const dynamic = "force-dynamic";
 
-  if (!batch) {
-    return (
-      <main className="mx-auto grid w-full max-w-3xl gap-5 px-5 py-12 sm:px-8">
-        <Link className="w-fit rounded-full bg-white/80 px-4 py-2 text-sm font-bold focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]" href="/min-plan">
-          Till Min plan
-        </Link>
-        <section className="rounded-[2rem] border border-dashed border-[color:var(--line)] bg-white/70 px-6 py-14 text-center">
-          <h1 className="text-2xl font-semibold">Odlingsomgången finns inte i den här sessionen.</h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-            V2-testläget sparar inte odlingar efter omladdning. Starta en ny omgång från Växtbiblioteket.
-          </p>
-        </section>
-      </main>
-    );
+export default async function BatchDetailPage({ params }: Readonly<{ params: Promise<{ batchId: string }> }>) {
+  const { batchId } = await params;
+  let batch = null;
+
+  try {
+    batch = await getCurrentUserGrowingBatch(batchId);
+  } catch (error) {
+    if (error instanceof Error && /Authentication required/i.test(error.message)) {
+      return (
+        <main className="mx-auto grid w-full max-w-3xl gap-5 px-5 py-12 sm:px-8">
+          <Link className="w-fit rounded-full bg-white/80 px-4 py-2 text-sm font-bold focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]" href="/min-plan">
+            Till Min plan
+          </Link>
+          <section className="rounded-[2rem] border border-[color:var(--line)] bg-white/70 px-6 py-14 text-center">
+            <h1 className="text-2xl font-semibold">Du behöver logga in.</h1>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+              Logga in med e-postlänk för att se dina sparade odlingsomgångar.
+            </p>
+            <Link
+              className="mt-6 inline-flex min-h-12 items-center rounded-full bg-[var(--forest)] px-6 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+              href="/logga-in"
+            >
+              Logga in
+            </Link>
+          </section>
+        </main>
+      );
+    }
+    throw error;
   }
+
+  if (!batch) notFound();
 
   const plant = plants.find((item) => item.id === batch.plantId);
   const plantName = plant?.name ?? "Okänd växt";
   const plan = planBatch(batch, plants);
-
-  const complete = () => {
-    completeBatch(batch.id);
-    setConfirming(false);
-    router.push("/min-plan");
-  };
 
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-7 px-5 py-8 sm:px-8 lg:py-12">
@@ -78,27 +82,7 @@ export default function BatchDetailPage() {
         </div>
         {batch.status === "active" ? (
           <div className="grid gap-2">
-            {!confirming ? (
-              <button
-                className="min-h-11 rounded-full border border-[color:var(--line)] bg-white px-4 text-sm font-bold text-[var(--muted)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
-                onClick={() => setConfirming(true)}
-                type="button"
-              >
-                Avsluta odling
-              </button>
-            ) : (
-              <div className="grid gap-2 rounded-[1.25rem] bg-[var(--sage-light)] p-3">
-                <p className="text-sm font-semibold">Avsluta bara den här omgången?</p>
-                <div className="flex gap-2">
-                  <button className="min-h-10 rounded-full bg-[var(--forest)] px-4 text-sm font-bold text-white" onClick={complete} type="button">
-                    Ja, avsluta
-                  </button>
-                  <button className="min-h-10 rounded-full bg-white px-4 text-sm font-bold" onClick={() => setConfirming(false)} type="button">
-                    Avbryt
-                  </button>
-                </div>
-              </div>
-            )}
+            <CompleteBatchControl batchId={batch.id} />
           </div>
         ) : null}
       </header>

@@ -1,12 +1,35 @@
-"use client";
-
 import Link from "next/link";
 import { GrowingBatchCard } from "@/components/GrowingBatchCard";
 import { plants } from "@/data/plants";
-import { useGrowingSession } from "@/state/growing-session";
+import { getCurrentUserGrowingBatches } from "@/lib/growing/server";
+import { splitBatchesByStatus } from "@/lib/growing/service";
 
-export default function MinPlanPage() {
-  const { activeBatches, completedBatches } = useGrowingSession();
+export const dynamic = "force-dynamic";
+
+export default async function MinPlanPage() {
+  const batches = await getCurrentUserGrowingBatches();
+
+  if (!batches) {
+    return (
+      <main className="mx-auto grid w-full max-w-3xl gap-6 px-5 py-12 sm:px-8">
+        <section className="rounded-[2rem] border border-[color:var(--line)] bg-white/75 px-6 py-14 text-center">
+          <p className="text-sm font-bold uppercase text-[var(--moss)]">Min plan</p>
+          <h1 className="mt-3 text-3xl font-semibold">Du behöver logga in.</h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[var(--muted)]">
+            Logga in med e-postlänk för att spara och läsa dina odlingsomgångar.
+          </p>
+          <Link
+            className="mt-6 inline-flex min-h-12 items-center rounded-full bg-[var(--forest)] px-6 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+            href="/logga-in"
+          >
+            Logga in
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  const { activeBatches, completedBatches } = splitBatchesByStatus(batches);
   const hasBatches = activeBatches.length + completedBatches.length > 0;
   const plantFor = (plantId: string) => plants.find((plant) => plant.id === plantId);
 
@@ -21,7 +44,7 @@ export default function MinPlanPage() {
           </p>
         </div>
         <p className="rounded-[1.25rem] border border-[color:var(--line)] bg-white/70 p-4 text-sm leading-6 text-[var(--muted)]">
-          V2-testläge: dina odlingar sparas inte efter att sidan laddas om.
+          Dina odlingsomgångar sparas på ditt konto och följer med efter omladdning.
         </p>
       </section>
 

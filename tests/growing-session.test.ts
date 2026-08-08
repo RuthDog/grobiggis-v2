@@ -121,8 +121,11 @@ test("start types have Swedish display labels", () => {
 });
 
 test("session layer does not implement reload persistence", () => {
-  const provider = readFileSync(new URL("../src/state/growing-session.tsx", import.meta.url), "utf8");
   const reducer = readFileSync(new URL("../src/state/growing-session-reducer.ts", import.meta.url), "utf8");
+  const appShell = readFileSync(new URL("../src/components/AppShell.tsx", import.meta.url), "utf8");
+  const minPlan = readFileSync(new URL("../src/app/min-plan/page.tsx", import.meta.url), "utf8");
+  const startDialog = readFileSync(new URL("../src/app/vaxtbibliotek/StartGrowingDialog.tsx", import.meta.url), "utf8");
 
-  assert.doesNotMatch(`${provider}\n${reducer}`, /localStorage|sessionStorage|indexedDB|cookie/i);
+  assert.doesNotMatch(`${reducer}\n${appShell}\n${minPlan}\n${startDialog}`, /localStorage|sessionStorage|indexedDB|cookie/i);
+  assert.doesNotMatch(`${appShell}\n${minPlan}\n${startDialog}`, /GrowingSessionProvider|useGrowingSession/);
 });

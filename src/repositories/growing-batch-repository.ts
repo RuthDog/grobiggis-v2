@@ -17,10 +17,13 @@ const eventSources = ["actual", "calculated"] as const;
 
 export interface GrowingBatchRepository {
   create(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
+  createForUser(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
   getByIdForUser(userId: string, batchId: string): Promise<GrowingBatch | null>;
   listForUser(userId: string): Promise<GrowingBatch[]>;
   save(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
+  saveForUser(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
   complete(userId: string, batchId: string, completedAt: string): Promise<GrowingBatch | null>;
+  completeForUser(userId: string, batchId: string, completedAt: string): Promise<GrowingBatch | null>;
 }
 
 function assertOneOf<T extends readonly string[]>(value: string, allowed: T, field: string): T[number] {
@@ -140,6 +143,10 @@ export class DrizzleGrowingBatchRepository implements GrowingBatchRepository {
     return snapshot;
   }
 
+  async createForUser(userId: string, batch: GrowingBatch) {
+    return this.create(userId, batch);
+  }
+
   async getByIdForUser(userId: string, batchId: string) {
     const [batch] = await this.db
       .select()
@@ -184,10 +191,18 @@ export class DrizzleGrowingBatchRepository implements GrowingBatchRepository {
     return snapshot;
   }
 
+  async saveForUser(userId: string, batch: GrowingBatch) {
+    return this.save(userId, batch);
+  }
+
   async complete(userId: string, batchId: string, completedAt: string) {
     const batch = await this.getByIdForUser(userId, batchId);
     if (!batch) return null;
     const completed: GrowingBatch = { ...batch, status: "completed", completedAt };
     return this.save(userId, completed);
+  }
+
+  async completeForUser(userId: string, batchId: string, completedAt: string) {
+    return this.complete(userId, batchId, completedAt);
   }
 }

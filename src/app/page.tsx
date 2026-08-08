@@ -39,10 +39,10 @@ export default function Home() {
             </Link>
           </div>
           <p className="mt-5 text-sm text-[var(--muted)]">
-            V2 är under utveckling och har nu konto- och D1-grund, men ingen permanent sparad odlingsdata, väder eller AI.
+            V2 är under utveckling och har nu konto, D1 och sparade odlingsomgångar, men inget väder eller AI.
           </p>
           <p className="mt-3 text-sm text-[var(--muted)]">
-            Min plan låter dig fortfarande starta en odlingsomgång i minnet och se den tills sidan laddas om.
+            Min plan laddar dina odlingsomgångar från databasen när du är inloggad.
           </p>
         </div>
 

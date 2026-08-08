@@ -364,22 +364,36 @@ test("logout and session flow are connected through Better Auth client", () => {
   assert.match(authNav, /signOut/);
 });
 
-test("GrowingSessionProvider is still in-memory", () => {
-  const provider = read("src/state/growing-session.tsx");
+test("GrowingSessionProvider is no longer the UI source of truth", () => {
+  const appShell = read("src/components/AppShell.tsx");
+  const minPlan = read("src/app/min-plan/page.tsx");
+  const detail = read("src/app/min-plan/[batchId]/page.tsx");
+  const startDialog = read("src/app/vaxtbibliotek/StartGrowingDialog.tsx");
   const reducer = read("src/state/growing-session-reducer.ts");
 
-  assert.match(provider, /useReducer\(growingSessionReducer, initialGrowingSessionState\)/);
-  assert.doesNotMatch(`${provider}\n${reducer}`, /createDb|DrizzleGrowingBatchRepository|authClient|localStorage|sessionStorage|indexedDB/i);
+  assert.doesNotMatch(`${appShell}\n${minPlan}\n${detail}\n${startDialog}`, /GrowingSessionProvider|useGrowingSession/);
+  assert.doesNotMatch(reducer, /localStorage|sessionStorage|indexedDB/i);
 });
 
-test("growing repository is not wired into UI yet", () => {
+test("growing UI is wired through server persistence actions", () => {
   const appFiles = [
     read("src/components/AppShell.tsx"),
     read("src/app/min-plan/page.tsx"),
+    read("src/app/min-plan/[batchId]/page.tsx"),
+    read("src/app/vaxtbibliotek/StartGrowingDialog.tsx"),
+    read("src/components/CompleteBatchControl.tsx"),
+    read("src/lib/growing/server.ts"),
+    read("src/lib/growing/actions.ts"),
+    read("src/lib/growing/service.ts"),
+    read("src/lib/growing/validation.ts"),
     read("src/app/vaxtbibliotek/PlantLibrary.tsx"),
   ].join("\n");
 
-  assert.doesNotMatch(appFiles, /DrizzleGrowingBatchRepository|createDb|getCurrentUser|requireUser/);
+  assert.match(appFiles, /DrizzleGrowingBatchRepository/);
+  assert.match(appFiles, /requireUser|getCurrentUser/);
+  assert.match(appFiles, /createGrowingBatchAction/);
+  assert.match(appFiles, /completeGrowingBatchAction/);
+  assert.doesNotMatch(appFiles, /clientSuppliedUserId|userId:\s*["']/);
 });
 
 test("no Sites session or identity-link implementation exists in V2", () => {
