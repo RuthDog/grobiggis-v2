@@ -20,13 +20,16 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
     <div className="min-h-screen bg-[var(--cream)] text-[var(--forest)]">
       <header className="sticky top-0 z-20 border-b border-[color:var(--line)] bg-[rgba(248,246,238,0.86)] backdrop-blur-xl">
         <div className="mx-auto flex min-h-20 w-full max-w-7xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <Link className="group flex w-fit items-center gap-3 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]" href="/">
+          <Link
+            className="group flex w-fit items-center gap-3 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+            href="/"
+          >
             <span className="grid size-10 place-items-center rounded-[1.25rem] rounded-bl-md bg-[var(--forest)] text-lg text-white shadow-sm transition group-hover:-rotate-3">
               G
             </span>
             <span className="grid">
               <span className="text-lg font-semibold">{BRAND.shortName}</span>
-              <span className="text-xs text-[var(--muted)]">V2 under utveckling</span>
+              <span className="text-xs text-[var(--muted)]">Personlig odlingshjälp</span>
             </span>
           </Link>
 
