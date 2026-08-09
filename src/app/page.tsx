@@ -28,15 +28,15 @@ export default async function Home() {
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   className="rounded-full bg-[var(--forest)] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
-                  href="/min-plan"
+                  href="/idag"
                 >
-                  Öppna Min plan
+                  Se vad som är aktuellt idag
                 </Link>
                 <Link
                   className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
-                  href="/vaxtbibliotek"
+                  href="/min-plan"
                 >
-                  Besök Växtbibliotek
+                  Öppna Min plan
                 </Link>
                 <Link
                   className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
@@ -48,17 +48,17 @@ export default async function Home() {
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <Link
                   className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+                  href="/idag"
+                >
+                  <p className="text-sm font-bold uppercase text-[var(--moss)]">Idag</p>
+                  <p className="mt-2 text-base font-semibold">Se vad som är aktuellt i din odling nu.</p>
+                </Link>
+                <Link
+                  className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
                   href="/min-plan"
                 >
                   <p className="text-sm font-bold uppercase text-[var(--moss)]">Min plan</p>
                   <p className="mt-2 text-base font-semibold">Se dina aktiva och avslutade odlingar.</p>
-                </Link>
-                <Link
-                  className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
-                  href="/vaxtbibliotek"
-                >
-                  <p className="text-sm font-bold uppercase text-[var(--moss)]">Växtbibliotek</p>
-                  <p className="mt-2 text-base font-semibold">Starta en ny odling från växtkatalogen.</p>
                 </Link>
                 <Link
                   className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"

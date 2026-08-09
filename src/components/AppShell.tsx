@@ -8,8 +8,9 @@ import { BRAND } from "@/config/brand";
 
 const navigation = [
   { href: "/", label: "Start" },
-  { href: "/vaxtbibliotek", label: "Växtbibliotek" },
+  { href: "/idag", label: "Idag" },
   { href: "/min-plan", label: "Min plan" },
+  { href: "/vaxtbibliotek", label: "Växtbibliotek" },
   { href: "/tips", label: "Tips & kunskap" },
 ];
 
