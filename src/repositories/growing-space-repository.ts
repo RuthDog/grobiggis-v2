@@ -131,12 +131,13 @@ export class DrizzlePlantPlacementRepository implements PlantPlacementRepository
       .where(and(eq(growingSpaces.userId, userId), eq(growingSpaces.id, placement.spaceId)))
       .limit(1);
     const [batch] = await this.db
-      .select({ id: growingBatches.id, userId: growingBatches.userId })
+      .select({ id: growingBatches.id, userId: growingBatches.userId, status: growingBatches.status })
       .from(growingBatches)
       .where(and(eq(growingBatches.userId, userId), eq(growingBatches.id, placement.batchId)))
       .limit(1);
 
     if (!space || !batch) return null;
+    if (batch.status !== "active") return null;
 
     const existing = await this.getActivePlacementForBatchForUser(userId, placement.batchId);
     if (existing) throw new PlantPlacementConflictError(placement.batchId);

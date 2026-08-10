@@ -107,6 +107,7 @@ class MemoryPlantPlacementRepository implements PlantPlacementRepository {
     const space = await this.spaces.getByIdForUser(userId, placement.spaceId);
     const batch = await this.batches.getByIdForUser(userId, placement.batchId);
     if (!space || !batch) return null;
+    if (batch.status !== "active") return null;
     const existing = await this.getActivePlacementForBatchForUser(userId, placement.batchId);
     if (existing) throw new PlantPlacementConflictError(placement.batchId);
     const snapshot = { ...structuredClone(placement), userId, spaceId: space.id, batchId: batch.id };
@@ -269,6 +270,13 @@ test("same batch cannot have two active placements", async () => {
     () => placeBatchInSpaceForUser(placementRepository, userA, { spaceId: "space-a-2", batchId: "batch-a" }, () => "placement-b"),
     PlantPlacementConflictError,
   );
+});
+
+test("completed batch without active placement is not newly placeable", async () => {
+  const { batchRepository, placementRepository } = await seeded();
+  await batchRepository.completeForUser(userA.id, "batch-a", "2026-09-01");
+
+  assert.equal(await placeBatchInSpaceForUser(placementRepository, userA, { spaceId: "space-a", batchId: "batch-a" }), null);
 });
 
 test("two batches of the same plant can be placed separately", async () => {

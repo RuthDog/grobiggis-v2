@@ -10,6 +10,7 @@ const navigation = [
   { href: "/", label: "Start" },
   { href: "/idag", label: "Idag" },
   { href: "/min-plan", label: "Min plan" },
+  { href: "/mina-odlingar", label: "Mina odlingar" },
   { href: "/vaxtbibliotek", label: "Växtbibliotek" },
   { href: "/tips", label: "Tips & kunskap" },
 ];
@@ -34,14 +35,14 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             </span>
           </Link>
 
-          <nav aria-label="Primär navigation" className="flex flex-wrap gap-2">
+          <nav aria-label="Primär navigation" className="flex flex-wrap gap-1.5 sm:gap-2">
             {navigation.map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
               return (
                 <Link
                   aria-current={active ? "page" : undefined}
-                  className="rounded-full px-4 py-2 text-sm font-semibold text-[var(--muted)] transition hover:bg-white hover:text-[var(--forest)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] aria-[current=page]:bg-white aria-[current=page]:text-[var(--forest)] aria-[current=page]:shadow-sm"
+                  className="rounded-full px-3 py-2 text-sm font-semibold text-[var(--muted)] transition hover:bg-white hover:text-[var(--forest)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] aria-[current=page]:bg-white aria-[current=page]:text-[var(--forest)] aria-[current=page]:shadow-sm sm:px-4"
                   href={item.href}
                   key={item.href}
                 >
