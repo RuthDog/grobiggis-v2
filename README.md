@@ -106,3 +106,11 @@ Version 2.2 etablerar ett enda authsystem för V2 med Better Auth `1.6.26`, samm
 Version 2.2B färdigställer integrationsgränsen för production magic-link-email. Better Auths `sendMagicLink` anropar Grobiggis emailtransport, som i production använder Resends REST API med `RESEND_API_KEY` och `AUTH_EMAIL_FROM`. Providerfel saneras innan de lämnar transporten, och production loggar aldrig API key, token eller magic-link-URL. Resend-provider, domain verification, DNS, Cloudflare secrets och Worker deployment kräver separata godkännanden.
 
 Version 2.3 gör Min plan persistent för inloggade användare. Skapa, lista, detaljvisa och avsluta odlingsomgångar går via server actions som hämtar verifierad Better Auth-session och använder sessionens `user.id` mot `GrowingBatchRepository`. Klienten skickar bara växt, sort, starttyp och startdatum vid skapande, aldrig `userId`, id eller status. Framtida calculated planhändelser sparas inte i D1; de rekonstrueras från batchens fakta och växtkatalogens regler vid laddning. Faktiska historikhändelser och avslutad status läses från D1. Min plan använder inte localStorage, sessionStorage, IndexedDB, anonym persistens eller gamla Grobiggis-användare.
+
+## Version 2.6 local foundation
+
+Version 2.6 etablerar en lokal, user-scopad datagrund for Mina odlingar utan publikt UI. Den lagger till `growing_spaces` for anvandarens odlingsytor och `plant_placements` for fysisk placering av odlingsomgangar pa ytor. Placering kopplas till `batch_id`, inte bara vaxt, sa tva omgangar av samma vaxt kan placeras separat.
+
+Odlingsomgang och fysisk placering ar fortsatt separata saker: en completed batch behaller sin placement tills anvandaren uttryckligen valjer att frigora plats. Version 2.6 anvander soft removal via `removed_at`, vilket gor att aktiva listor kan filtrera bort frigjorda platser samtidigt som historiken finns kvar. En batch far ha hogst en aktiv placement, medan en odlingsyta kan ha flera aktiva batchplacements.
+
+Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns separat. Den ska endast skapa `growing_spaces`, `plant_placements`, deras index och FK:er. Ingen navigation, ingen `/mina-odlingar`-route och ingen Worker-deploy ingar i 2.6-grunden.

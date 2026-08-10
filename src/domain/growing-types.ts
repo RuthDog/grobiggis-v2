@@ -1,8 +1,7 @@
-import type { SpaceType, SunExposure } from "@/data/plant-types";
-
 export type GrowingStartType = "seed" | "direct" | "purchased" | "divided" | "established";
 export type PurchasedStage = "small" | "established" | "flowering" | "fruiting";
 export type GrowingBatchStatus = "active" | "completed";
+export type GrowingSpaceType = "raised_bed" | "greenhouse" | "open_ground" | "pot";
 export type GrowingEventType =
   | "sådd"
   | "direktsådd"
@@ -65,19 +64,20 @@ export interface GrowingPlan {
 
 export interface PlantPlacement {
   id: string;
+  userId: string;
   spaceId: string;
-  plantId: string;
   batchId: string;
-  x: number;
-  y: number;
+  placedAt: string;
+  removedAt?: string;
 }
 
 export interface GrowingSpace {
   id: string;
+  userId: string;
   name: string;
-  type: SpaceType;
-  sun: SunExposure;
-  plantIds: string[];
+  type: GrowingSpaceType;
+  createdAt: string;
+  updatedAt: string;
   placements: PlantPlacement[];
 }
 

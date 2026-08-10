@@ -33,10 +33,11 @@ const batch = (patch: Partial<GrowingBatch> = {}): GrowingBatch => ({
 });
 const space = (placements: GrowingSpace["placements"] = []): GrowingSpace => ({
   id: "space-a",
+  userId: "user-a",
   name: "Pallkrage",
-  type: "pallkrage",
-  sun: "soligt",
-  plantIds: [...new Set(placements.map((placement) => placement.plantId))],
+  type: "raised_bed",
+  createdAt: "2026-08-10T10:00:00.000Z",
+  updatedAt: "2026-08-10T10:00:00.000Z",
   placements,
 });
 
@@ -144,20 +145,26 @@ test("future tasks from completed batches are hidden while done history remains 
 test("physical placement can remain after batch completion and explicit release touches only one placement", () => {
   const completed = completeGrowingBatch(batch({ id: "tomat-a" }), "2026-08-01");
   const original = space([
-    { id: "placement-a", spaceId: "space-a", plantId: "tomat", batchId: completed.id, x: 20, y: 30 },
-    { id: "placement-b", spaceId: "space-a", plantId: "tomat", batchId: "tomat-b", x: 60, y: 30 },
+    { id: "placement-a", userId: "user-a", spaceId: "space-a", batchId: completed.id, placedAt: "2026-07-01T10:00:00.000Z" },
+    { id: "placement-b", userId: "user-a", spaceId: "space-a", batchId: "tomat-b", placedAt: "2026-07-02T10:00:00.000Z" },
   ]);
-  const released = removePlantPlacement(original, "placement-a");
+  const released = removePlantPlacement(original, "placement-a", "2026-08-01T10:00:00.000Z");
 
   assert.equal(placementsForBatch([original], completed.id).length, 1);
-  assert.deepEqual(released.placements.map((placement) => placement.id), ["placement-b"]);
-  assert.deepEqual(released.plantIds, ["tomat"]);
+  assert.equal(placementsForBatch([released], completed.id, { activeOnly: true }).length, 0);
+  assert.equal(released.placements.find((placement) => placement.id === "placement-a")?.removedAt, "2026-08-01T10:00:00.000Z");
+  assert.deepEqual(released.placements.map((placement) => placement.id), ["placement-a", "placement-b"]);
 });
 
 test("adding placement links plant species to the exact batch", () => {
-  const placed = addPlantPlacement(space(), { id: "placement-a", spaceId: "space-a", plantId: "tomat", batchId: "batch-a", x: 20, y: 30 });
+  const placed = addPlantPlacement(space(), {
+    id: "placement-a",
+    userId: "user-a",
+    spaceId: "space-a",
+    batchId: "batch-a",
+    placedAt: "2026-07-01T10:00:00.000Z",
+  });
 
-  assert.deepEqual(placed.plantIds, ["tomat"]);
   assert.equal(placed.placements[0].batchId, "batch-a");
 });
 

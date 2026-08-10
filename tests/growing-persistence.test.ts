@@ -1,16 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { growingBatches, growingEvents } from "../src/db/schema.ts";
+import { growingBatches, growingEvents, growingSpaces, plantPlacements } from "../src/db/schema.ts";
 import {
   actualEventToRow,
   batchToRow,
   rowToActualEvent,
   rowToBatch,
 } from "../src/repositories/growing-batch-repository.ts";
+import { placementToRow, rowToPlacement, rowToSpace, spaceToRow } from "../src/repositories/growing-space-repository.ts";
 import { plants } from "../src/data/plants.ts";
 import { planBatch } from "../src/domain/growing-plan.ts";
-import type { GrowingBatch, ActualGrowingEvent } from "../src/domain/growing-types.ts";
-import type { GrowingBatchRow, GrowingEventRow } from "../src/db/schema.ts";
+import type { GrowingBatch, ActualGrowingEvent, GrowingSpace, PlantPlacement } from "../src/domain/growing-types.ts";
+import type { GrowingBatchRow, GrowingEventRow, GrowingSpaceRow, PlantPlacementRow } from "../src/db/schema.ts";
 
 const seedEventType = "s\u00e5dd";
 const harvestEventType = "sk\u00f6rd";
@@ -66,6 +67,46 @@ const eventRow = (patch: Partial<GrowingEventRow> = {}): GrowingEventRow => ({
   ...patch,
 });
 
+const growingSpace = (patch: Partial<GrowingSpace> = {}): GrowingSpace => ({
+  id: "space-a",
+  userId: "user-a",
+  name: "Pallkragen vid altanen",
+  type: "raised_bed",
+  createdAt: "2026-08-10T10:00:00.000Z",
+  updatedAt: "2026-08-10T10:00:00.000Z",
+  placements: [],
+  ...patch,
+});
+
+const spaceRow = (patch: Partial<GrowingSpaceRow> = {}): GrowingSpaceRow => ({
+  id: "space-a",
+  userId: "user-a",
+  name: "Pallkragen vid altanen",
+  type: "raised_bed",
+  createdAt: "2026-08-10T10:00:00.000Z",
+  updatedAt: "2026-08-10T10:00:00.000Z",
+  ...patch,
+});
+
+const plantPlacement = (patch: Partial<PlantPlacement> = {}): PlantPlacement => ({
+  id: "placement-a",
+  userId: "user-a",
+  spaceId: "space-a",
+  batchId: "batch-a",
+  placedAt: "2026-08-10T10:30:00.000Z",
+  ...patch,
+});
+
+const placementRow = (patch: Partial<PlantPlacementRow> = {}): PlantPlacementRow => ({
+  id: "placement-a",
+  userId: "user-a",
+  spaceId: "space-a",
+  batchId: "batch-a",
+  placedAt: "2026-08-10T10:30:00.000Z",
+  removedAt: null,
+  ...patch,
+});
+
 test("growing batch schema keeps user-scoped identity columns", () => {
   assert.equal(growingBatches.id.name, "id");
   assert.equal(growingBatches.userId.name, "user_id");
@@ -78,6 +119,21 @@ test("growing event schema links actual events to batches and users", () => {
   assert.equal(growingEvents.userId.name, "user_id");
   assert.equal(growingEvents.batchId.name, "batch_id");
   assert.equal(growingEvents.source.name, "source");
+});
+
+test("growing space schema keeps user-scoped identity columns", () => {
+  assert.equal(growingSpaces.id.name, "id");
+  assert.equal(growingSpaces.userId.name, "user_id");
+  assert.equal(growingSpaces.name.name, "name");
+  assert.equal(growingSpaces.type.name, "type");
+});
+
+test("plant placement schema links spaces, batches and users", () => {
+  assert.equal(plantPlacements.id.name, "id");
+  assert.equal(plantPlacements.userId.name, "user_id");
+  assert.equal(plantPlacements.spaceId.name, "space_id");
+  assert.equal(plantPlacements.batchId.name, "batch_id");
+  assert.equal(plantPlacements.removedAt.name, "removed_at");
 });
 
 test("batchToRow maps a domain batch to a D1 insert row", () => {
@@ -184,4 +240,29 @@ test("persistence mapping does not mutate the source batch", () => {
   actualEventToRow("user-a", source.actualEvents[0], "now");
 
   assert.deepEqual(source, batch({ actualEvents: [actualEvent()] }));
+});
+
+test("spaceToRow maps a growing space without embedding placements", () => {
+  assert.deepEqual(spaceToRow(growingSpace({ placements: [plantPlacement()] })), spaceRow());
+});
+
+test("rowToSpace restores a growing space with active placements", () => {
+  assert.deepEqual(rowToSpace(spaceRow(), [plantPlacement()]), growingSpace({ placements: [plantPlacement()] }));
+});
+
+test("rowToSpace rejects unknown DB space types", () => {
+  assert.throws(() => rowToSpace(spaceRow({ type: "balcony" })), /Invalid growing space type/);
+});
+
+test("placementToRow maps active and released placements", () => {
+  assert.deepEqual(placementToRow(plantPlacement()), placementRow());
+  assert.equal(placementToRow(plantPlacement({ removedAt: "2026-08-11T10:00:00.000Z" })).removedAt, "2026-08-11T10:00:00.000Z");
+});
+
+test("rowToPlacement turns null removedAt into omitted domain field", () => {
+  assert.deepEqual(rowToPlacement(placementRow()), plantPlacement());
+});
+
+test("rowToPlacement preserves soft removal history", () => {
+  assert.equal(rowToPlacement(placementRow({ removedAt: "2026-08-11T10:00:00.000Z" })).removedAt, "2026-08-11T10:00:00.000Z");
 });

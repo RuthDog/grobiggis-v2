@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const authUser = sqliteTable(
@@ -111,6 +111,42 @@ export const growingEvents = sqliteTable(
   ],
 );
 
+export const growingSpaces = sqliteTable(
+  "growing_spaces",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("growing_spaces_user_id_idx").on(table.userId)],
+);
+
+export const plantPlacements = sqliteTable(
+  "plant_placements",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    spaceId: text("space_id")
+      .notNull()
+      .references(() => growingSpaces.id, { onDelete: "restrict" }),
+    batchId: text("batch_id")
+      .notNull()
+      .references(() => growingBatches.id, { onDelete: "restrict" }),
+    placedAt: text("placed_at").notNull(),
+    removedAt: text("removed_at"),
+  },
+  (table) => [
+    index("plant_placements_user_id_idx").on(table.userId),
+    index("plant_placements_space_id_idx").on(table.spaceId),
+    index("plant_placements_batch_id_idx").on(table.batchId),
+    index("plant_placements_removed_at_idx").on(table.removedAt),
+    uniqueIndex("plant_placements_active_batch_unique").on(table.batchId).where(sql`${table.removedAt} IS NULL`),
+  ],
+);
+
 export const growingBatchRelations = relations(growingBatches, ({ many }) => ({
   events: many(growingEvents),
 }));
@@ -122,7 +158,26 @@ export const growingEventRelations = relations(growingEvents, ({ one }) => ({
   }),
 }));
 
+export const growingSpaceRelations = relations(growingSpaces, ({ many }) => ({
+  placements: many(plantPlacements),
+}));
+
+export const plantPlacementRelations = relations(plantPlacements, ({ one }) => ({
+  space: one(growingSpaces, {
+    fields: [plantPlacements.spaceId],
+    references: [growingSpaces.id],
+  }),
+  batch: one(growingBatches, {
+    fields: [plantPlacements.batchId],
+    references: [growingBatches.id],
+  }),
+}));
+
 export type GrowingBatchRow = typeof growingBatches.$inferSelect;
 export type NewGrowingBatchRow = typeof growingBatches.$inferInsert;
 export type GrowingEventRow = typeof growingEvents.$inferSelect;
 export type NewGrowingEventRow = typeof growingEvents.$inferInsert;
+export type GrowingSpaceRow = typeof growingSpaces.$inferSelect;
+export type NewGrowingSpaceRow = typeof growingSpaces.$inferInsert;
+export type PlantPlacementRow = typeof plantPlacements.$inferSelect;
+export type NewPlantPlacementRow = typeof plantPlacements.$inferInsert;
