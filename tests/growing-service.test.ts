@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { planBatch, recordActualEvent } from "../src/domain/growing-plan.ts";
+import { buildTodayViewFromBatches } from "../src/domain/today-view.ts";
 import type { GrowingBatch } from "../src/domain/growing-types.ts";
 import {
   completeGrowingBatchForUser,
+  completePlanActivityForUser,
   createGrowingBatchForUser,
   getGrowingBatchForUser,
   listGrowingBatchesForUser,
@@ -17,6 +19,7 @@ import { plants } from "../src/data/plants.ts";
 class MemoryGrowingBatchRepository implements GrowingBatchRepository {
   readonly rows = new Map<string, { userId: string; batch: GrowingBatch }>();
   savedCalculatedEvents = 0;
+  savedActualEvents = 0;
 
   async create(userId: string, batch: GrowingBatch) {
     return this.createForUser(userId, batch);
@@ -47,6 +50,17 @@ class MemoryGrowingBatchRepository implements GrowingBatchRepository {
     if (!stored || stored.userId !== userId) throw new Error("not found");
     const snapshot = structuredClone(batch);
     this.rows.set(snapshot.id, { userId, batch: snapshot });
+    return structuredClone(snapshot);
+  }
+
+  async addActualEventForUser(userId: string, batchId: string, event: GrowingBatch["actualEvents"][number]) {
+    const stored = this.rows.get(batchId);
+    if (!stored || stored.userId !== userId) return null;
+    if (stored.batch.actualEvents.some((existing) => existing.type === event.type)) return structuredClone(stored.batch);
+    const snapshot = structuredClone(stored.batch);
+    snapshot.actualEvents.push({ ...structuredClone(event), batchId, plantId: snapshot.plantId });
+    this.rows.set(batchId, { userId, batch: snapshot });
+    this.savedActualEvents += 1;
     return structuredClone(snapshot);
   }
 
@@ -181,6 +195,109 @@ test("completion persists completedAt and reload-equivalent history", async () =
   assert.equal(reloaded?.completedAt, "2026-09-01");
   assert.ok(plan.events.every((event) => event.status === "done"));
   assert.ok(plan.events.some((event) => event.type === "avslutad"));
+});
+
+test("plan activity completion requires auth and rejects client-owned facts", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  const created = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const planned = planBatch(created, plants).events.find((event) => event.source === "calculated")!;
+
+  await assert.rejects(
+    () => completePlanActivityForUser(repository, { id: "" }, { batchId: created.id, planEventId: planned.id }),
+    /Authentication required/i,
+  );
+  await assert.rejects(
+    () =>
+      completePlanActivityForUser(
+        repository,
+        userA,
+        { batchId: created.id, planEventId: planned.id, userId: "client-user", occurredOn: "2026-01-01" },
+        new Date("2026-04-01T10:00:00Z"),
+      ),
+    GrowingInputError,
+  );
+});
+
+test("plan activity completion persists one scoped actual event and removes the pending task", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  const created = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const planned = planBatch(created, plants).events.find((event) => event.source === "calculated")!;
+
+  const completed = await completePlanActivityForUser(
+    repository,
+    userA,
+    { batchId: created.id, planEventId: planned.id, eventType: planned.type },
+    new Date("2026-04-01T22:30:00Z"),
+    () => "actual-a",
+  );
+  const reloaded = await getGrowingBatchForUser(repository, userA, created.id);
+  const actual = reloaded?.actualEvents[0];
+  const plan = planBatch(reloaded!, plants);
+  const today = buildTodayViewFromBatches([reloaded!], new Date("2026-04-02T09:00:00Z"));
+
+  assert.equal(completed?.id, "batch-a");
+  assert.equal(repository.rows.get("batch-a")?.userId, "user-a");
+  assert.equal(actual?.id, "actual-a");
+  assert.equal(actual?.batchId, "batch-a");
+  assert.equal(actual?.plantId, "tomat");
+  assert.equal(actual?.type, planned.type);
+  assert.equal(actual?.occurredOn, "2026-04-02");
+  assert.equal(repository.savedActualEvents, 1);
+  assert.equal(repository.savedCalculatedEvents, 0);
+  assert.ok(plan.events.some((event) => event.source === "actual" && event.status === "done" && event.type === planned.type));
+  assert.ok(!plan.events.some((event) => event.source === "calculated" && event.type === planned.type));
+  assert.ok(![...today.sections.today, ...today.sections.now, ...today.sections.next].some((activity) => activity.planEventId === planned.id));
+});
+
+test("plan activity completion rejects arbitrary or stale plan event identities", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  const created = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const planned = planBatch(created, plants).events.find((event) => event.source === "calculated")!;
+
+  await assert.rejects(
+    () => completePlanActivityForUser(repository, userA, { batchId: created.id, planEventId: planned.id, eventType: "hack" }),
+    GrowingInputError,
+  );
+  await assert.rejects(
+    () => completePlanActivityForUser(repository, userA, { batchId: created.id, planEventId: "batch-a:does-not-exist" }),
+    GrowingInputError,
+  );
+});
+
+test("users cannot complete another user's plan activity", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  await createGrowingBatchForUser(repository, userA, { plantId: "tomat", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const batchB = await createGrowingBatchForUser(repository, userB, { plantId: "basilika", startType: "seed", startDate: "2026-04-01" }, () => "batch-b");
+  const plannedB = planBatch(batchB, plants).events.find((event) => event.source === "calculated")!;
+
+  assert.equal(await completePlanActivityForUser(repository, userA, { batchId: "batch-b", planEventId: plannedB.id }), null);
+  assert.equal((await getGrowingBatchForUser(repository, userB, "batch-b"))?.actualEvents.length, 0);
+});
+
+test("plan activity completion is idempotent and leaves sibling batches untouched", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  const batchA = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", variety: "A", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const batchB = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", variety: "B", startType: "seed", startDate: "2026-03-10" }, () => "batch-b");
+  const plannedA = planBatch(batchA, plants).events.find((event) => event.source === "calculated")!;
+
+  await completePlanActivityForUser(repository, userA, { batchId: batchA.id, planEventId: plannedA.id }, new Date("2026-04-01T10:00:00Z"), () => "actual-a");
+  await completePlanActivityForUser(repository, userA, { batchId: batchA.id, planEventId: plannedA.id }, new Date("2026-04-01T10:00:00Z"), () => "actual-b");
+
+  assert.equal((await getGrowingBatchForUser(repository, userA, batchA.id))?.actualEvents.length, 1);
+  assert.equal((await getGrowingBatchForUser(repository, userA, batchB.id))?.actualEvents.length, 0);
+  assert.equal(repository.savedActualEvents, 1);
+});
+
+test("completed batches cannot receive plan activity completions", async () => {
+  const repository = new MemoryGrowingBatchRepository();
+  const created = await createGrowingBatchForUser(repository, userA, { plantId: "tomat", startType: "seed", startDate: "2026-03-10" }, () => "batch-a");
+  const planned = planBatch(created, plants).events.find((event) => event.source === "calculated")!;
+  await completeGrowingBatchForUser(repository, userA, created.id, "2026-09-01");
+
+  await assert.rejects(
+    () => completePlanActivityForUser(repository, userA, { batchId: created.id, planEventId: planned.id }),
+    GrowingInputError,
+  );
 });
 
 test("calculated future events are not persisted", async () => {

@@ -62,7 +62,7 @@ export default async function TodayPage() {
                 <p className="text-sm font-bold uppercase text-[var(--moss)]">Idag</p>
                 <h2 className="mt-2 text-2xl font-semibold">Det har ar aktuellt nu.</h2>
               </div>
-              <div className="grid gap-4">{view.today.map((activity) => <TodayActivityCard activity={activity} key={activity.id} />)}</div>
+              <div className="grid gap-4">{view.today.map((activity) => <TodayActivityCard activity={activity} canComplete key={activity.id} />)}</div>
             </section>
           ) : null}
 
@@ -72,7 +72,7 @@ export default async function TodayPage() {
                 <p className="text-sm font-bold uppercase text-[var(--moss)]">Att gora nu</p>
                 <h2 className="mt-2 text-2xl font-semibold">Nyligen aktuellt och fortfarande relevant.</h2>
               </div>
-              <div className="grid gap-4">{view.now.map((activity) => <TodayActivityCard activity={activity} key={activity.id} />)}</div>
+              <div className="grid gap-4">{view.now.map((activity) => <TodayActivityCard activity={activity} canComplete key={activity.id} />)}</div>
             </section>
           ) : null}
 

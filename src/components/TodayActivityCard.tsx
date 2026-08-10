@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { CompleteTodayActivityControl } from "@/components/CompleteTodayActivityControl";
 import { PlantVisual } from "@/components/PlantVisual";
 import type { TodayActivity } from "@/domain/today-view";
 
-export function TodayActivityCard({ activity }: Readonly<{ activity: TodayActivity }>) {
+export function TodayActivityCard({ activity, canComplete = false }: Readonly<{ activity: TodayActivity; canComplete?: boolean }>) {
   return (
     <article className="grid gap-4 rounded-[1.6rem] border border-[color:var(--line)] bg-[var(--paper)] p-5 shadow-[0_18px_42px_rgba(28,67,53,0.08)] sm:grid-cols-[auto_1fr_auto] sm:items-center">
       <PlantVisual plantId={activity.plantId} size="medium" />
@@ -15,7 +16,8 @@ export function TodayActivityCard({ activity }: Readonly<{ activity: TodayActivi
         <p className="text-sm text-[var(--muted)]">{activity.batchStartLabel}</p>
         <p className="text-sm leading-6 text-[var(--muted)]">{activity.reason}</p>
       </div>
-      <div className="sm:justify-self-end">
+      <div className="grid gap-2 sm:justify-self-end">
+        {canComplete ? <CompleteTodayActivityControl batchId={activity.batchId} eventType={activity.eventType} planEventId={activity.planEventId} /> : null}
         <Link
           className="inline-flex min-h-11 items-center rounded-full border border-[color:var(--line)] bg-white/85 px-4 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
           href={activity.href}

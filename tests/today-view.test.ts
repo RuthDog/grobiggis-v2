@@ -33,6 +33,12 @@ class MemoryGrowingBatchRepository implements GrowingBatchRepository {
     this.rows.set(batch.id, { userId, batch: structuredClone(batch) });
     return structuredClone(batch);
   }
+  async addActualEventForUser(userId: string, batchId: string, event: GrowingBatch["actualEvents"][number]) {
+    const existing = await this.getByIdForUser(userId, batchId);
+    if (!existing) return null;
+    if (existing.actualEvents.some((actual) => actual.type === event.type)) return existing;
+    return this.saveForUser(userId, { ...existing, actualEvents: [...existing.actualEvents, { ...event, batchId, plantId: existing.plantId }] });
+  }
   async complete(userId: string, batchId: string, completedAt: string) {
     return this.completeForUser(userId, batchId, completedAt);
   }
@@ -58,6 +64,8 @@ const activity = (patch: Partial<TodayActivity> = {}): TodayActivity => ({
   id: "today:a",
   batchId: "batch-a",
   plantId: "tomat",
+  planEventId: "batch-a:skord",
+  eventType: "skörd",
   plantName: "Tomat",
   batchName: "Tomat · Sungold",
   batchStartLabel: "Startad 1 augusti",
@@ -165,6 +173,18 @@ test("the Idag page keeps the read-only empty states and login path", () => {
   assert.match(source, /\/logga-in/);
   assert.match(source, /Du har inga aktiva odlingar just nu/);
   assert.match(source, /Det finns inget som behover goras just idag/);
+});
+
+test("the Idag page only enables completion for current work sections", () => {
+  const page = readFileSync("src/app/idag/page.tsx", "utf8");
+  const card = readFileSync("src/components/TodayActivityCard.tsx", "utf8");
+  const control = readFileSync("src/components/CompleteTodayActivityControl.tsx", "utf8");
+
+  assert.match(page, /view\.today\.map\(\(activity\) => <TodayActivityCard activity=\{activity\} canComplete/);
+  assert.match(page, /view\.now\.map\(\(activity\) => <TodayActivityCard activity=\{activity\} canComplete/);
+  assert.match(page, /view\.next\.map\(\(activity\) => <TodayActivityCard activity=\{activity\} key=\{activity\.id\}/);
+  assert.match(card, /CompleteTodayActivityControl/);
+  assert.match(control, /completePlanActivityAction/);
 });
 
 test("the Idag view is linked from navigation and the logged-in home CTA", () => {

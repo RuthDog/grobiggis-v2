@@ -22,6 +22,7 @@ export interface GrowingBatchRepository {
   listForUser(userId: string): Promise<GrowingBatch[]>;
   save(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
   saveForUser(userId: string, batch: GrowingBatch): Promise<GrowingBatch>;
+  addActualEventForUser(userId: string, batchId: string, event: ActualGrowingEvent): Promise<GrowingBatch | null>;
   complete(userId: string, batchId: string, completedAt: string): Promise<GrowingBatch | null>;
   completeForUser(userId: string, batchId: string, completedAt: string): Promise<GrowingBatch | null>;
 }
@@ -193,6 +194,15 @@ export class DrizzleGrowingBatchRepository implements GrowingBatchRepository {
 
   async saveForUser(userId: string, batch: GrowingBatch) {
     return this.save(userId, batch);
+  }
+
+  async addActualEventForUser(userId: string, batchId: string, event: ActualGrowingEvent) {
+    const batch = await this.getByIdForUser(userId, batchId);
+    if (!batch) return null;
+    if (batch.actualEvents.some((existing) => existing.type === event.type)) return batch;
+
+    await this.db.insert(growingEvents).values(actualEventToRow(userId, { ...event, batchId, plantId: batch.plantId }));
+    return this.getByIdForUser(userId, batchId);
   }
 
   async complete(userId: string, batchId: string, completedAt: string) {

@@ -4,6 +4,7 @@ import { getCurrentUser, requireUser } from "@/lib/auth/server";
 import { DrizzleGrowingBatchRepository } from "@/repositories/growing-batch-repository";
 import {
   completeGrowingBatchForUser,
+  completePlanActivityForUser,
   createGrowingBatchForUser,
   getGrowingBatchForUser,
   listGrowingBatchesForUser,
@@ -34,4 +35,9 @@ export async function createCurrentUserGrowingBatch(input: unknown) {
 export async function completeCurrentUserGrowingBatch(batchId: string) {
   const user = await requireUser();
   return completeGrowingBatchForUser(await getGrowingRepositoryForRequest(), user, batchId);
+}
+
+export async function completeCurrentUserPlanActivity(input: unknown) {
+  const user = await requireUser();
+  return completePlanActivityForUser(await getGrowingRepositoryForRequest(), user, input);
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { completeCurrentUserGrowingBatch, createCurrentUserGrowingBatch } from "./server";
+import { completeCurrentUserGrowingBatch, completeCurrentUserPlanActivity, createCurrentUserGrowingBatch } from "./server";
 import { GrowingInputError } from "./validation";
 
 export type GrowingActionResult =
@@ -34,5 +34,18 @@ export async function completeGrowingBatchAction(batchId: string): Promise<Growi
     return { ok: true, batchId: batch.id };
   } catch (error) {
     return { ok: false, error: messageForError(error, "Odlingsomgången kunde inte sparas.") };
+  }
+}
+
+export async function completePlanActivityAction(input: unknown): Promise<GrowingActionResult> {
+  try {
+    const batch = await completeCurrentUserPlanActivity(input);
+    if (!batch) return { ok: false, error: "Odlingsomgangen kunde inte hittas." };
+    revalidatePath("/idag");
+    revalidatePath("/min-plan");
+    revalidatePath(`/min-plan/${batch.id}`);
+    return { ok: true, batchId: batch.id };
+  } catch (error) {
+    return { ok: false, error: messageForError(error, "Aktiviteten kunde inte sparas.") };
   }
 }

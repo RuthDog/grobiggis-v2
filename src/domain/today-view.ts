@@ -11,6 +11,8 @@ export type TodayActivity = {
   id: string;
   batchId: string;
   plantId: string;
+  planEventId: string;
+  eventType: PlannedGrowingEvent["type"];
   plantName: string;
   batchName: string;
   batchStartLabel: string;
@@ -47,6 +49,8 @@ function activityFromEvent(batch: GrowingBatch, event: PlannedGrowingEvent) {
     id: `today:${event.id}`,
     batchId: batch.id,
     plantId: batch.plantId,
+    planEventId: event.id,
+    eventType: event.type,
     plantName,
     batchName: batchDisplayName(batch, plantName),
     batchStartLabel: batchStartLabel(batch),
