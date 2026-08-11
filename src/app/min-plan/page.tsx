@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GrowingBatchCard } from "@/components/GrowingBatchCard";
+import { PlanModeNavigation } from "@/components/PlanModeNavigation";
 import { plants } from "@/data/plants";
 import { getCurrentUserGrowingBatches } from "@/lib/growing/server";
 import { splitBatchesByStatus } from "@/lib/growing/service";
@@ -12,6 +13,7 @@ export default async function MinPlanPage() {
   if (!batches) {
     return (
       <main className="mx-auto grid w-full max-w-3xl gap-6 px-5 py-12 sm:px-8">
+        <PlanModeNavigation current="/min-plan" />
         <section className="rounded-[2rem] border border-[color:var(--line)] bg-white/75 px-6 py-14 text-center">
           <p className="text-sm font-bold uppercase text-[var(--moss)]">Min plan</p>
           <h1 className="mt-3 text-3xl font-semibold">Du behöver logga in.</h1>
@@ -35,6 +37,7 @@ export default async function MinPlanPage() {
 
   return (
     <main className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:py-14">
+      <PlanModeNavigation current="/min-plan" />
       <section className="grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(280px,0.45fr)] lg:items-end">
         <div>
           <p className="text-sm font-bold uppercase text-[var(--moss)]">Min plan</p>
