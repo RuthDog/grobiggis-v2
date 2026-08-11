@@ -1,17 +1,22 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import { AddToShoppingListButton } from "@/components/AddToShoppingListButton";
 import { PlantCard } from "@/components/PlantCard";
 import type { CatalogPlant } from "@/data/plant-types";
 import { plants } from "@/data/plants";
 import { searchableCatalogPlants } from "@/domain/plant-search";
 import { StartGrowingDialog } from "./StartGrowingDialog";
 
-export function PlantLibrary() {
+export function PlantLibrary({
+  isAuthenticated,
+  shoppingPlantIds,
+}: Readonly<{ isAuthenticated: boolean; shoppingPlantIds: string[] }>) {
   const [query, setQuery] = useState("");
   const [selectedPlant, setSelectedPlant] = useState<CatalogPlant | undefined>();
   const searchId = useId();
   const results = useMemo(() => searchableCatalogPlants(plants, query), [query]);
+  const listedPlantIds = useMemo(() => new Set(shoppingPlantIds), [shoppingPlantIds]);
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-9 px-5 py-10 sm:px-8 lg:py-14">
@@ -59,6 +64,13 @@ export function PlantLibrary() {
               }
               key={plant.id}
               plant={plant}
+              secondaryAction={
+                <AddToShoppingListButton
+                  isAuthenticated={isAuthenticated}
+                  listed={listedPlantIds.has(plant.id)}
+                  plantId={plant.id}
+                />
+              }
             />
           ))}
         </section>

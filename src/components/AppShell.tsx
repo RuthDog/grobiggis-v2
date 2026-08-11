@@ -11,6 +11,7 @@ const navigation = [
   { href: "/idag", label: "Idag" },
   { href: "/min-plan", label: "Min plan" },
   { href: "/mina-odlingar", label: "Mina odlingar" },
+  { href: "/inkopslista", label: "Inköpslista" },
   { href: "/vaxtbibliotek", label: "Växtbibliotek" },
   { href: "/tips", label: "Tips & kunskap" },
 ];

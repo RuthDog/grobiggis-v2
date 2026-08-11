@@ -147,6 +147,20 @@ export const plantPlacements = sqliteTable(
   ],
 );
 
+export const shoppingListItems = sqliteTable(
+  "shopping_list_items",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    plantId: text("plant_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("shopping_list_items_user_id_idx").on(table.userId),
+    uniqueIndex("shopping_list_items_user_plant_unique").on(table.userId, table.plantId),
+  ],
+);
+
 export const growingBatchRelations = relations(growingBatches, ({ many }) => ({
   events: many(growingEvents),
 }));
@@ -181,3 +195,5 @@ export type GrowingSpaceRow = typeof growingSpaces.$inferSelect;
 export type NewGrowingSpaceRow = typeof growingSpaces.$inferInsert;
 export type PlantPlacementRow = typeof plantPlacements.$inferSelect;
 export type NewPlantPlacementRow = typeof plantPlacements.$inferInsert;
+export type ShoppingListItemRow = typeof shoppingListItems.$inferSelect;
+export type NewShoppingListItemRow = typeof shoppingListItems.$inferInsert;

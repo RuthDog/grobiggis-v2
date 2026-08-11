@@ -2,7 +2,11 @@ import { PlantVisual } from "@/components/PlantVisual";
 import type { CatalogPlant } from "@/data/plant-types";
 import type { ReactNode } from "react";
 
-export function PlantCard({ plant, action }: Readonly<{ plant: CatalogPlant; action?: ReactNode }>) {
+export function PlantCard({
+  plant,
+  action,
+  secondaryAction,
+}: Readonly<{ plant: CatalogPlant; action?: ReactNode; secondaryAction?: ReactNode }>) {
   return (
     <article className="grid min-h-64 gap-5 rounded-[1.75rem] border border-[color:var(--line)] bg-[rgba(255,254,250,0.88)] p-5 shadow-[0_18px_46px_rgba(28,67,53,0.08)]">
       <div className="flex items-start justify-between gap-4">
@@ -27,7 +31,12 @@ export function PlantCard({ plant, action }: Readonly<{ plant: CatalogPlant; act
           <dd className="mt-1 font-semibold">{plant.difficulty}</dd>
         </div>
       </dl>
-      {action ? <div>{action}</div> : null}
+      {action || secondaryAction ? (
+        <div className="grid gap-3">
+          {action ? <div>{action}</div> : null}
+          {secondaryAction ? <div>{secondaryAction}</div> : null}
+        </div>
+      ) : null}
     </article>
   );
 }

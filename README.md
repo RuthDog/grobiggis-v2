@@ -114,3 +114,10 @@ Version 2.6 etablerar en lokal, user-scopad datagrund for Mina odlingar utan pub
 Odlingsomgang och fysisk placering ar fortsatt separata saker: en completed batch behaller sin placement tills anvandaren uttryckligen valjer att frigora plats. Version 2.6 anvander soft removal via `removed_at`, vilket gor att aktiva listor kan filtrera bort frigjorda platser samtidigt som historiken finns kvar. En batch far ha hogst en aktiv placement, medan en odlingsyta kan ha flera aktiva batchplacements.
 
 Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns separat. Den ska endast skapa `growing_spaces`, `plant_placements`, deras index och FK:er. Ingen navigation, ingen `/mina-odlingar`-route och ingen Worker-deploy ingar i 2.6-grunden.
+## Version 2.9 - Inkopslista
+
+- En enkel personlig inkopslista dar varje rad sparar `plantId` mot den statiska katalogen.
+- Listan ar user-scoped i D1 och bygger inte pa localStorage, sessionStorage eller anonym persistence.
+- Modellen innehaller bara `id`, `userId`, `plantId` och `createdAt`.
+- Version 2.9 introducerar ingen forradsmodell och lagger inte till quantity, price, store eller annan inkopsmetadata.
+- Migration `0003_*` ska vara lokal tills remote-korning uttryckligen godkants.

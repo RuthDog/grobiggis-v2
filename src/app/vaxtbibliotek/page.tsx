@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth/server";
+import { getCurrentUserShoppingPlantIds } from "@/lib/shopping-list/server";
 import { PlantLibrary } from "./PlantLibrary";
 
 export const metadata: Metadata = {
@@ -6,10 +8,15 @@ export const metadata: Metadata = {
   description: "Sök i GroBiggis statiska växtkatalog.",
 };
 
-export default function PlantLibraryPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PlantLibraryPage() {
+  const user = await getCurrentUser();
+  const shoppingPlantIds = await getCurrentUserShoppingPlantIds();
+
   return (
     <main>
-      <PlantLibrary />
+      <PlantLibrary isAuthenticated={Boolean(user)} shoppingPlantIds={[...shoppingPlantIds]} />
     </main>
   );
 }
