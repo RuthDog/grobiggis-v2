@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const authUser = sqliteTable(
   "user",
@@ -161,6 +161,24 @@ export const shoppingListItems = sqliteTable(
   ],
 );
 
+export const userProfiles = sqliteTable(
+  "user_profiles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    firstName: text("first_name"),
+    locality: text("locality"),
+    countryCode: text("country_code").notNull().default("SE"),
+    latitude: real("latitude"),
+    longitude: real("longitude"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("user_profiles_user_id_unique").on(table.userId)],
+);
+
 export const growingBatchRelations = relations(growingBatches, ({ many }) => ({
   events: many(growingEvents),
 }));
@@ -197,3 +215,5 @@ export type PlantPlacementRow = typeof plantPlacements.$inferSelect;
 export type NewPlantPlacementRow = typeof plantPlacements.$inferInsert;
 export type ShoppingListItemRow = typeof shoppingListItems.$inferSelect;
 export type NewShoppingListItemRow = typeof shoppingListItems.$inferInsert;
+export type UserProfileRow = typeof userProfiles.$inferSelect;
+export type NewUserProfileRow = typeof userProfiles.$inferInsert;

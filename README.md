@@ -121,3 +121,11 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Modellen innehaller bara `id`, `userId`, `plantId` och `createdAt`.
 - Version 2.9 introducerar ingen forradsmodell och lagger inte till quantity, price, store eller annan inkopsmetadata.
 - Migration `0003_*` ska vara lokal tills remote-korning uttryckligen godkants.
+
+## Version 3.0 - Profil och platsgrund
+
+- En minimal personlig profil sparar `firstName` och `locality` for den inloggade Better Auth-anvandaren.
+- Profilen ar user-scoped i D1 med exakt en `user_profiles`-rad per `user.id`.
+- Tabellen har nullable `latitude` och `longitude` for framtida ort-resolver, men Version 3.0 gor ingen geocoding.
+- Version 3.0 bygger inget vader, ingen vaxtzon, ingen notifiering och lagrar ingen exakt adress.
+- Migration `0004_*` ska vara lokal tills remote-korning uttryckligen godkants.
