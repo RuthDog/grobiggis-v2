@@ -14,7 +14,8 @@ export async function saveUserProfileForUser(
   now: Date = new Date(),
 ) {
   const userId = assertUserProfileUser(user);
-  const normalized = createInternalUserProfileInput(validateSaveUserProfileInput(input));
+  const existingProfile = await repository.getForUser(userId);
+  const normalized = createInternalUserProfileInput(validateSaveUserProfileInput(input), existingProfile);
   const timestamp = now.toISOString();
 
   return repository.upsertForUser(userId, {

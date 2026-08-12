@@ -129,3 +129,16 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Tabellen har nullable `latitude` och `longitude` for framtida ort-resolver, men Version 3.0 gor ingen geocoding.
 - Version 3.0 bygger inget vader, ingen vaxtzon, ingen notifiering och lagrar ingen exakt adress.
 - Migration `0004_*` ska vara lokal tills remote-korning uttryckligen godkants.
+
+## Version 3.1 - Verifierad odlingsplats
+
+- Profilens odlingsort kan verifieras via Open-Meteo Geocoding API pa servern.
+- Sokning sker bara nar anvandaren uttryckligen valjer `Sok ort`, inte vid varje tangenttryckning.
+- Open-Meteo-anropet anvander `name`, `count=5`, `language=sv`, `countryCode=SE` och `format=json`.
+- Providerformatet mappas till en Grobiggis-kandidat innan det nar UI eller profilsparning.
+- Anvandaren maste valja en kandidat innan `latitude` och `longitude` sparas.
+- Servern validerar vald kandidat, accepterar bara `countryCode=SE` och sparar endast `locality`, `countryCode`, `latitude` och `longitude`.
+- Servern gor ingen extra provider-resolve vid save i Version 3.1; vald kandidat ar transient och valideras strikt innan minimal profildata sparas.
+- Om `locality` andras utan ny vald kandidat rensas tidigare `latitude` och `longitude`.
+- `latitude != null && longitude != null` betyder att orten har en verifierad geografisk punkt.
+- Version 3.1 bygger inget vader, ingen SMHI-integration, ingen browser geolocation och ingen ny DB-migration.

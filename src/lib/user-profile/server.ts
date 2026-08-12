@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createDb } from "@/db/client";
 import { getCurrentUser, requireUser } from "@/lib/auth/server";
 import { DrizzleUserProfileRepository } from "@/repositories/user-profile-repository";
+import { searchOpenMeteoLocalities } from "@/services/geocoding/open-meteo";
 import { getUserProfileForUser, saveUserProfileForUser } from "./service";
 
 async function getUserProfileDbForRequest() {
@@ -23,4 +24,9 @@ export async function getCurrentUserProfile() {
 export async function saveCurrentUserProfile(input: unknown) {
   const user = await requireUser();
   return saveUserProfileForUser(await getUserProfileRepositoryForRequest(), user, input);
+}
+
+export async function searchCurrentUserProfileLocalities(locality: string) {
+  await requireUser();
+  return searchOpenMeteoLocalities(locality);
 }

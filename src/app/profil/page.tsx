@@ -40,7 +40,7 @@ export default async function ProfilePage() {
         </p>
       </section>
 
-      <UserProfileForm firstName={profile?.firstName} locality={profile?.locality} />
+      <UserProfileForm firstName={profile?.firstName} latitude={profile?.latitude} locality={profile?.locality} longitude={profile?.longitude} />
     </main>
   );
 }
