@@ -1,4 +1,9 @@
 import { getCurrentUser } from "@/lib/auth/server";
+import { plants } from "@/data/plants";
+import { assessFrostRisk, unavailableFrostAssessment, type FrostAssessment } from "@/domain/frost-watch";
+import type { GrowingBatch } from "@/domain/growing-types";
+import { getGrowingRepositoryForRequest } from "@/lib/growing/server";
+import { listGrowingBatchesForUser, type VerifiedGrowingUser } from "@/lib/growing/service";
 import { getUserProfileRepositoryForRequest } from "@/lib/user-profile/server";
 import { getUserProfileForUser } from "@/lib/user-profile/service";
 import { fetchWeatherForecast } from "@/services/weather/provider";
@@ -8,7 +13,31 @@ export type CurrentUserWeatherState =
   | { status: "signed-out" }
   | { status: "missing-location"; locality: string | null }
   | { status: "error"; locality: string; error: string }
-  | { status: "ready"; forecast: WeatherForecast };
+  | { status: "ready"; forecast: WeatherForecast; frostAssessment: FrostAssessment };
+
+export async function getFrostAssessmentForUser(user: VerifiedGrowingUser, batches: GrowingBatch[], now = new Date()): Promise<FrostAssessment> {
+  if (!user.id) throw new Error("Authentication required.");
+  const profile = await getUserProfileForUser(await getUserProfileRepositoryForRequest(), user);
+  if (!profile?.locality || profile.latitude === null || profile.longitude === null) return unavailableFrostAssessment(now);
+
+  try {
+    const forecast = await fetchWeatherForecast(
+      {
+        location: {
+          locality: profile.locality,
+          countryCode: "SE",
+        },
+        latitude: profile.latitude,
+        longitude: profile.longitude,
+      },
+      { now: () => now },
+    );
+
+    return assessFrostRisk({ forecast, batches, plantCatalog: plants, now });
+  } catch {
+    return unavailableFrostAssessment(now);
+  }
+}
 
 export async function getCurrentUserWeatherForecast(): Promise<CurrentUserWeatherState> {
   const user = await getCurrentUser();
@@ -29,7 +58,9 @@ export async function getCurrentUserWeatherForecast(): Promise<CurrentUserWeathe
       longitude: profile.longitude,
     });
 
-    return { status: "ready", forecast };
+    const batches = await listGrowingBatchesForUser(await getGrowingRepositoryForRequest(), user);
+
+    return { status: "ready", forecast, frostAssessment: assessFrostRisk({ forecast, batches, plantCatalog: plants }) };
   } catch (error) {
     if (error instanceof WeatherForecastError) return { status: "error", locality: profile.locality, error: error.message };
     return { status: "error", locality: profile.locality, error: "Vädret kunde inte hämtas just nu." };

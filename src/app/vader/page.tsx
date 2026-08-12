@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FrostWatchCard } from "@/components/FrostWatchCard";
 import { getCurrentUserWeatherForecast } from "@/lib/weather/server";
 import { formatPrecipitation, formatTemperature, formatWeekday, formatWind, labelForCondition } from "@/services/weather/presentation";
 
@@ -57,7 +58,7 @@ export default async function WeatherPage() {
     );
   }
 
-  const { forecast } = state;
+  const { forecast, frostAssessment } = state;
   const currentLabel = labelForCondition(forecast.current.condition);
 
   return (
@@ -123,6 +124,8 @@ export default async function WeatherPage() {
           </div>
         </div>
       </section>
+
+      <FrostWatchCard assessment={frostAssessment} />
 
       <p className="text-sm leading-6 text-[var(--muted)]">
         <a className="font-semibold underline underline-offset-4" href={forecast.attribution.url} rel="noreferrer" target="_blank">

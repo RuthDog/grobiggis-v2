@@ -156,3 +156,17 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Open-Meteos fria/open-access endpoint anvands for V2/prototyp/icke-kommersiell drift. Innan monetarisering eller kommersiell lansering maste prognoslagret byta till licensierad/customer endpoint med API key eller annan kommersiellt tillaten vaderprovider.
 - Vaderdomanen och UI ar providerneutrala sa att valet kan bytas i provider/configlagret.
 - UI visar diskret attribution till Open-Meteo dar vaderdata visas.
+
+## Version 3.3 - Frostvakt
+
+- Frostvakt ar ett harlett beslutsstod ovanpa verifierad profilplats, providerneutral `WeatherForecast.hourly` och anvandarens aktiva `GrowingBatch`.
+- Bedomningen sparas inte i D1, skapar inga `growing_events`, inga weather snapshots, ingen alert history och ingen notifierings-/pushmotor.
+- Nattfonstret ar Europe/Stockholm och definieras som kommande eller pagaende natt 18:00-09:00. Fore 09:00 analyseras pagaende natt fran foregaende kvall; fran 09:00 analyseras kommande natt.
+- SMHI anvands for frostprincipen: frost nar temperaturen gar under 0 C, samtidigt som mark och vegetation kan bli kallare an 2m-lufttemperatur.
+- RHS anvands for forsiktig markfrostrisk och varmealskande koksvaxter: markfrost kan forekomma nar nattluften ligger runt 1-4 C, och exempelvis tomat, paprika, basilika och cucurbits mar battre nar natter ar over 10 C.
+- CSU Extension anvands som extra stod for tomat: tomat ar frostkanslig och paverkas negativt av kalla temperaturer.
+- Frostnivaerna ar: `frost` vid prognostiserad 2m-temperatur under 0 C, `near_frost` vid 0-4 C, `cold_night` vid under 10 C for varmealskande profiler och `none` nar ingen tydlig risk syns i prognosen.
+- Cold profiles finns i `src/data/plant-cold-profiles.ts` och ar kopplade via stabilt `plantId`, inte via switch/case i frostmotorn.
+- Version 3.3 klassificerar endast valgrundade forsta vaxter: `tomat`, `korsbarstomat`, `chili`, `paprika`, `gurka`, `zucchini`, `pumpa`, `buskbona` och `basilika`.
+- Frostvakten antar inte att `greenhouse`, `pot` eller annan placering ar frostfri. UI uttrycker darfor "om plantan star ute eller oskyddat" och mikroklimat/placering kan ge annan faktisk temperatur.
+- Om verifierad plats saknas eller vaderprovider fallerar visas ingen falsk "ingen frostrisk"; unknown weather behandlas som unavailable.

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FrostWatchCard } from "@/components/FrostWatchCard";
 import { TodayActivityCard } from "@/components/TodayActivityCard";
 import { getCurrentUserTodayView } from "@/lib/growing/today";
 
@@ -56,6 +57,8 @@ export default async function TodayPage() {
         </section>
       ) : (
         <div className="grid gap-8">
+          {view.frostAssessment ? <FrostWatchCard assessment={view.frostAssessment} compact showNeutral={false} /> : null}
+
           {view.today.length ? (
             <section className="grid gap-4">
               <div>

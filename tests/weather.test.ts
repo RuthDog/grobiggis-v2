@@ -189,12 +189,12 @@ test("Open-Meteo raw forecast fields stay outside product logic", () => {
   }
 });
 
-test("Version 3.2 adds no weather persistence, schema migration, frost, drought or push layer", () => {
+test("Version 3.3 keeps weather and frost derived without persistence, schema migration, drought or push layer", () => {
   const schema = read("src/db/schema.ts");
   const migrations = read("migrations/meta/_journal.json");
   const weatherSources = `${read("src/services/weather/open-meteo.ts")}\n${read("src/lib/weather/server.ts")}\n${read("src/app/vader/page.tsx")}`;
 
   assert.doesNotMatch(schema, /weather_forecasts|weather_alerts|forecast_history|frost|drought|push/i);
   assert.doesNotMatch(migrations, /0005_|weather_forecasts|weather_alerts|forecast_history/i);
-  assert.doesNotMatch(weatherSources, /INSERT|UPDATE|DELETE|db:generate|SMHI|Nominatim|weather_forecasts|frostvarning|tork|push/i);
+  assert.doesNotMatch(weatherSources, /INSERT|UPDATE|DELETE|db:generate|SMHI API|Nominatim|weather_forecasts|tork|push/i);
 });
