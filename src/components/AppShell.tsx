@@ -9,6 +9,7 @@ import { BRAND } from "@/config/brand";
 const navigation = [
   { href: "/", label: "Start" },
   { href: "/idag", label: "Idag" },
+  { href: "/vader", label: "Väder" },
   { href: "/min-plan", label: "Min plan" },
   { href: "/mina-odlingar", label: "Mina odlingar" },
   { href: "/inkopslista", label: "Inköpslista" },

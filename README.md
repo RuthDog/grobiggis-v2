@@ -142,3 +142,17 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Om `locality` andras utan ny vald kandidat rensas tidigare `latitude` och `longitude`.
 - `latitude != null && longitude != null` betyder att orten har en verifierad geografisk punkt.
 - Version 3.1 bygger inget vader, ingen SMHI-integration, ingen browser geolocation och ingen ny DB-migration.
+
+## Version 3.2 - Vadergrund och prognosmotor
+
+- Vader hamtas server-side fran Open-Meteo Forecast API med profilens verifierade `latitude` och `longitude` som enda kalla.
+- Klienten far inte skicka egna koordinater och `/vader` anvander inga `lat`/`lon` query params.
+- Forecast-responsen normaliseras till en providerneutral Grobiggis `WeatherForecast` innan den nar UI.
+- Requesten anvander `current`, `daily` och en minimal hourly-serie for att inte blockera nasta frostlager.
+- UI visar nuvarande vader och fem kommande dagar for den verifierade odlingsorten.
+- Open-Meteo-data cacheas via Next fetch revalidation i 20 minuter. Ingen KV-, D1- eller cron-cache skapas.
+- Prognoser sparas inte i D1. Version 3.2 skapar ingen `weather_forecasts`-tabell, ingen forecast history och ingen alertmodell.
+- Version 3.2 bygger ingen frostvakt, torkvakt, bevattningsrad, varmevarning, push eller notifieringsmotor.
+- Open-Meteos fria/open-access endpoint anvands for V2/prototyp/icke-kommersiell drift. Innan monetarisering eller kommersiell lansering maste prognoslagret byta till licensierad/customer endpoint med API key eller annan kommersiellt tillaten vaderprovider.
+- Vaderdomanen och UI ar providerneutrala sa att valet kan bytas i provider/configlagret.
+- UI visar diskret attribution till Open-Meteo dar vaderdata visas.

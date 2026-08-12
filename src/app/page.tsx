@@ -40,12 +40,18 @@ export default async function Home() {
                 </Link>
                 <Link
                   className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+                  href="/vader"
+                >
+                  Se lokalt väder
+                </Link>
+                <Link
+                  className="rounded-full border border-[color:var(--line)] bg-white/80 px-6 py-3 text-sm font-bold text-[var(--forest)] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
                   href="/tips"
                 >
                   Läs Tips & kunskap
                 </Link>
               </div>
-              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Link
                   className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
                   href="/idag"
@@ -59,6 +65,13 @@ export default async function Home() {
                 >
                   <p className="text-sm font-bold uppercase text-[var(--moss)]">Min plan</p>
                   <p className="mt-2 text-base font-semibold">Se dina aktiva och avslutade odlingar.</p>
+                </Link>
+                <Link
+                  className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+                  href="/vader"
+                >
+                  <p className="text-sm font-bold uppercase text-[var(--moss)]">Väder</p>
+                  <p className="mt-2 text-base font-semibold">Se prognosen för din verifierade odlingsplats.</p>
                 </Link>
                 <Link
                   className="rounded-[1.5rem] border border-[color:var(--line)] bg-white/80 p-4 shadow-[0_14px_34px_rgba(28,67,53,0.06)] transition hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
