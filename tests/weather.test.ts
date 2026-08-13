@@ -34,16 +34,17 @@ function forecastPayload() {
       wind_gusts_10m: 8.1,
     },
     daily: {
-      time: ["2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16"],
-      weather_code: [2, 61, 3, 0, 80],
-      temperature_2m_min: [14, 13, 12, 15, 16],
-      temperature_2m_max: [20, 21, 19, 22, 23],
-      precipitation_sum: [0.4, 3.2, 0, 0, 1.1],
-      precipitation_probability_max: [20, 70, 5, 0, 40],
-      wind_speed_10m_max: [5, 6, 4, 3, 7],
-      wind_gusts_10m_max: [9, 12, 8, 7, 14],
-      sunrise: ["2026-08-12T05:32", "2026-08-13T05:34", "2026-08-14T05:36", "2026-08-15T05:38", "2026-08-16T05:40"],
-      sunset: ["2026-08-12T20:49", "2026-08-13T20:47", "2026-08-14T20:44", "2026-08-15T20:42", "2026-08-16T20:39"],
+      time: ["2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16"],
+      weather_code: [0, 1, 2, 2, 61, 3, 0, 80],
+      temperature_2m_min: [12, 11, 13, 14, 13, 12, 15, 16],
+      temperature_2m_max: [18, 19, 20, 20, 21, 19, 22, 23],
+      precipitation_sum: [0, 0.1, 0, 0.4, 3.2, 0, 0, 1.1],
+      et0_fao_evapotranspiration: [3.1, 3.4, 2.9, 3.2, 2.1, 2.4, 3, 3.3],
+      precipitation_probability_max: [0, 5, 10, 20, 70, 5, 0, 40],
+      wind_speed_10m_max: [3, 4, 5, 5, 6, 4, 3, 7],
+      wind_gusts_10m_max: [7, 8, 9, 9, 12, 8, 7, 14],
+      sunrise: ["2026-08-09T05:26", "2026-08-10T05:28", "2026-08-11T05:30", "2026-08-12T05:32", "2026-08-13T05:34", "2026-08-14T05:36", "2026-08-15T05:38", "2026-08-16T05:40"],
+      sunset: ["2026-08-09T20:55", "2026-08-10T20:53", "2026-08-11T20:51", "2026-08-12T20:49", "2026-08-13T20:47", "2026-08-14T20:44", "2026-08-15T20:42", "2026-08-16T20:39"],
     },
     hourly: {
       time: ["2026-08-12T00:00", "2026-08-12T01:00", "2026-08-12T02:00"],
@@ -66,13 +67,14 @@ test("Open-Meteo forecast request uses profile coordinates and intended variable
   assert.equal(url.searchParams.get("longitude"), "12.85676");
   assert.equal(url.searchParams.get("timezone"), "Europe/Stockholm");
   assert.equal(url.searchParams.get("forecast_days"), "5");
+  assert.equal(url.searchParams.get("past_days"), "3");
   assert.equal(url.searchParams.get("temperature_unit"), "celsius");
   assert.equal(url.searchParams.get("wind_speed_unit"), "ms");
   assert.equal(url.searchParams.get("precipitation_unit"), "mm");
   assert.equal(url.searchParams.get("current"), "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_gusts_10m");
   assert.equal(
     url.searchParams.get("daily"),
-    "weather_code,temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset",
+    "weather_code,temperature_2m_min,temperature_2m_max,precipitation_sum,et0_fao_evapotranspiration,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,sunrise,sunset",
   );
   assert.equal(url.searchParams.get("hourly"), "temperature_2m");
 });
@@ -100,14 +102,17 @@ test("Open-Meteo forecast fetch uses short cache revalidation and normalizes cur
   assert.equal(forecast.current.windGusts, 8.1);
   assert.equal(forecast.current.condition, "partly_cloudy");
   assert.equal("weatherCode" in forecast.current, false);
-  assert.equal(forecast.daily.length, 5);
-  assert.equal(forecast.daily[1].condition, "rain");
-  assert.equal("weatherCode" in forecast.daily[1], false);
-  assert.equal(forecast.daily[1].temperatureMin, 13);
-  assert.equal(forecast.daily[1].temperatureMax, 21);
-  assert.equal(forecast.daily[1].precipitationProbabilityMax, 70);
-  assert.equal(forecast.daily[0].sunrise, "2026-08-12T05:32");
-  assert.equal(forecast.daily[0].sunset, "2026-08-12T20:49");
+  assert.equal(forecast.daily.length, 8);
+  assert.equal(forecast.daily[0].isPast, true);
+  assert.equal(forecast.daily[3].isPast, false);
+  assert.equal(forecast.daily[4].condition, "rain");
+  assert.equal("weatherCode" in forecast.daily[4], false);
+  assert.equal(forecast.daily[4].temperatureMin, 13);
+  assert.equal(forecast.daily[4].temperatureMax, 21);
+  assert.equal(forecast.daily[4].referenceEvapotranspiration, 2.1);
+  assert.equal(forecast.daily[4].precipitationProbabilityMax, 70);
+  assert.equal(forecast.daily[3].sunrise, "2026-08-12T05:32");
+  assert.equal(forecast.daily[3].sunset, "2026-08-12T20:49");
   assert.deepEqual(forecast.hourly.map((hour) => hour.temperature), [11.2, 10.8, 10.1]);
 });
 
@@ -180,7 +185,7 @@ test("weather page is auth-backed, profile-sourced and has missing-location stat
 
 test("Open-Meteo raw forecast fields stay outside product logic", () => {
   const allowedRawFieldFiles = new Set(["src\\services\\weather\\open-meteo.ts"]);
-  const rawPattern = /weather_code|temperature_2m|apparent_temperature|precipitation_probability|wind_speed_10m|wind_gusts_10m/;
+  const rawPattern = /weather_code|temperature_2m|apparent_temperature|precipitation_probability|wind_speed_10m|wind_gusts_10m|et0_fao_evapotranspiration/;
 
   for (const file of sourceFiles("src")) {
     const normalized = file.replaceAll("/", "\\");

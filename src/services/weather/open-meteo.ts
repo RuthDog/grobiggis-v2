@@ -5,6 +5,7 @@ const OPEN_METEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_TIMEOUT_MS = 4_000;
 const DEFAULT_REVALIDATE_SECONDS = 1_200;
 const FORECAST_DAYS = 5;
+const PAST_DAYS = 3;
 const TIMEZONE = "Europe/Stockholm";
 const CURRENT_VARIABLES = ["temperature_2m", "apparent_temperature", "precipitation", "weather_code", "wind_speed_10m", "wind_gusts_10m"] as const;
 const DAILY_VARIABLES = [
@@ -12,6 +13,7 @@ const DAILY_VARIABLES = [
   "temperature_2m_min",
   "temperature_2m_max",
   "precipitation_sum",
+  "et0_fao_evapotranspiration",
   "precipitation_probability_max",
   "wind_speed_10m_max",
   "wind_gusts_10m_max",
@@ -57,6 +59,17 @@ function arrayValue(value: unknown) {
   return Array.isArray(value) ? value : null;
 }
 
+function stockholmDateISO(now: Date) {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 function mapCurrent(current: Record<string, unknown>) {
   const weatherCode = numberValue(current.weather_code);
   return {
@@ -70,35 +83,39 @@ function mapCurrent(current: Record<string, unknown>) {
   };
 }
 
-function mapDaily(daily: Record<string, unknown>) {
+function mapDaily(daily: Record<string, unknown>, todayISO: string) {
   const time = arrayValue(daily.time);
   const weatherCode = arrayValue(daily.weather_code);
   const temperatureMin = arrayValue(daily.temperature_2m_min);
   const temperatureMax = arrayValue(daily.temperature_2m_max);
   const precipitationSum = arrayValue(daily.precipitation_sum);
+  const referenceEvapotranspiration = arrayValue(daily.et0_fao_evapotranspiration);
   const precipitationProbabilityMax = arrayValue(daily.precipitation_probability_max);
   const windSpeedMax = arrayValue(daily.wind_speed_10m_max);
   const windGustsMax = arrayValue(daily.wind_gusts_10m_max);
   const sunrise = arrayValue(daily.sunrise);
   const sunset = arrayValue(daily.sunset);
 
-  if (!time || !weatherCode || !temperatureMin || !temperatureMax || !precipitationSum || !windSpeedMax || !windGustsMax) {
+  if (!time || !weatherCode || !temperatureMin || !temperatureMax || !precipitationSum || !referenceEvapotranspiration || !windSpeedMax || !windGustsMax) {
     throw new WeatherForecastError("Vädret kunde inte hämtas just nu.", "malformed");
   }
 
-  return time.slice(0, FORECAST_DAYS).map((date, index): DailyWeather => {
+  return time.slice(0, PAST_DAYS + FORECAST_DAYS).map((date, index): DailyWeather => {
     const code = numberValue(weatherCode[index]);
+    const dateValue = stringValue(date) ?? "";
     return {
-      date: stringValue(date) ?? "",
+      date: dateValue,
       condition: mapOpenMeteoWeatherCode(code),
       temperatureMin: numberValue(temperatureMin[index]),
       temperatureMax: numberValue(temperatureMax[index]),
       precipitationSum: numberValue(precipitationSum[index]),
+      referenceEvapotranspiration: optionalNumberValue(referenceEvapotranspiration[index]),
       precipitationProbabilityMax: precipitationProbabilityMax ? optionalNumberValue(precipitationProbabilityMax[index]) : null,
       windSpeedMax: numberValue(windSpeedMax[index]),
       windGustsMax: numberValue(windGustsMax[index]),
       sunrise: sunrise ? stringValue(sunrise[index]) : null,
       sunset: sunset ? stringValue(sunset[index]) : null,
+      isPast: dateValue < todayISO,
     };
   });
 }
@@ -121,6 +138,7 @@ export function buildOpenMeteoForecastUrl(latitude: number, longitude: number) {
     longitude: String(lon),
     timezone: TIMEZONE,
     forecast_days: String(FORECAST_DAYS),
+    past_days: String(PAST_DAYS),
     current: CURRENT_VARIABLES.join(","),
     daily: DAILY_VARIABLES.join(","),
     hourly: HOURLY_VARIABLES.join(","),
@@ -157,7 +175,7 @@ export async function fetchOpenMeteoForecast(location: WeatherLocation, latitude
       timezone: stringValue(forecast.timezone) ?? TIMEZONE,
       fetchedAt: (options.now ?? (() => new Date()))().toISOString(),
       current: mapCurrent(forecast.current),
-      daily: mapDaily(forecast.daily),
+      daily: mapDaily(forecast.daily, stockholmDateISO((options.now ?? (() => new Date()))())),
       hourly: mapHourly(forecast.hourly),
       attribution: {
         label: "Väderdata från Open-Meteo",

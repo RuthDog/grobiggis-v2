@@ -31,11 +31,13 @@ export interface DailyWeather {
   temperatureMin: number;
   temperatureMax: number;
   precipitationSum: number;
+  referenceEvapotranspiration: number | null;
   precipitationProbabilityMax: number | null;
   windSpeedMax: number;
   windGustsMax: number;
   sunrise: string | null;
   sunset: string | null;
+  isPast: boolean;
 }
 
 export interface HourlyWeather {

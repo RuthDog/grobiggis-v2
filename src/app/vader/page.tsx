@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FrostWatchCard } from "@/components/FrostWatchCard";
+import { WaterWatchCard } from "@/components/WaterWatchCard";
 import { getCurrentUserWeatherForecast } from "@/lib/weather/server";
 import { formatPrecipitation, formatTemperature, formatWeekday, formatWind, labelForCondition } from "@/services/weather/presentation";
 
@@ -58,8 +59,9 @@ export default async function WeatherPage() {
     );
   }
 
-  const { forecast, frostAssessment } = state;
+  const { forecast, frostAssessment, waterAssessment } = state;
   const currentLabel = labelForCondition(forecast.current.condition);
+  const forecastDays = forecast.daily.filter((day) => !day.isPast).slice(0, 5);
 
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-8 px-5 py-10 sm:px-8 lg:py-14">
@@ -100,7 +102,7 @@ export default async function WeatherPage() {
             <h2 className="mt-2 text-2xl font-semibold">Femdagarsprognos</h2>
           </div>
           <div className="grid gap-3">
-            {forecast.daily.map((day) => (
+            {forecastDays.map((day) => (
               <article className="grid gap-3 rounded-[1.25rem] border border-[color:var(--line)] bg-white px-4 py-3 sm:grid-cols-[minmax(8rem,0.8fr)_minmax(0,1fr)_auto] sm:items-center" key={day.date}>
                 <div>
                   <h3 className="font-semibold capitalize">{formatWeekday(day.date)}</h3>
@@ -126,6 +128,7 @@ export default async function WeatherPage() {
       </section>
 
       <FrostWatchCard assessment={frostAssessment} />
+      <WaterWatchCard assessment={waterAssessment} />
 
       <p className="text-sm leading-6 text-[var(--muted)]">
         <a className="font-semibold underline underline-offset-4" href={forecast.attribution.url} rel="noreferrer" target="_blank">

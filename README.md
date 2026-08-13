@@ -170,3 +170,18 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Version 3.3 klassificerar endast valgrundade forsta vaxter: `tomat`, `korsbarstomat`, `chili`, `paprika`, `gurka`, `zucchini`, `pumpa`, `buskbona` och `basilika`.
 - Frostvakten antar inte att `greenhouse`, `pot` eller annan placering ar frostfri. UI uttrycker darfor "om plantan star ute eller oskyddat" och mikroklimat/placering kan ge annan faktisk temperatur.
 - Om verifierad plats saknas eller vaderprovider fallerar visas ingen falsk "ingen frostrisk"; unknown weather behandlas som unavailable.
+
+## Version 3.4 - Bevattningskoll
+
+- Bevattningskoll ar vaderbaserat beslutsstod for att se om aktiva odlingar bor kontrolleras for uttorkning eller bevattningsbehov.
+- Grobiggis mater inte faktisk jordfuktighet och vet inte jordtyp, krukstorlek, skugga, nar anvandaren senast vattnade eller hur mycket vatten som gavs.
+- WeatherForecast utokas providerneutralt med daglig `referenceEvapotranspiration` och `isPast`; Open-Meteos ra falt `et0_fao_evapotranspiration` stannar i adaptern.
+- Open-Meteo-requesten behaller befintliga vaderfalt och lagger endast till daglig ET0 samt `past_days=3` for ett kort senaste-dagarna-fonster.
+- FAO-56/FAO AQUASTAT anvands for tolkningen: ET0 ar referensevapotranspiration for en standardiserad valvattnad yta. Verkligt grodbehov kraver bland annat Kc, utvecklingsstadium, nederbord, markvatten och odlingsforhallanden.
+- Bevattningskoll gor darfor inte `ET0 - precipitation` till ett faktiskt bevattningsbehov och visar inga liter- eller doseringsrad.
+- Reglerna kombinerar lite nederbord de senaste dagarna, lag prognostiserad nederbord nara framat, forhojd ET0-signal, hog dagstemperatur, PlantWaterProfile och forsiktig placement-kontext.
+- `pot` kan ge extra uppmarksamhet eftersom krukor och containers enligt RHS oftare riskerar att torka ut. `greenhouse`, `raised_bed` och `open_ground` far ingen automatisk torrhetsfaktor i 3.4.
+- PlantWaterProfile finns for forsta kallbelagda gruppen: `tomat`, `korsbarstomat`, `gurka`, `zucchini`, `pumpa`, `chili`, `paprika`, `basilika`, `sallat` och `buskbona`.
+- RHS, Utah State University Extension, Iowa State University Extension och University of Minnesota Extension anvands for vattenprofilernas forsiktiga klassning.
+- Om regn ar pa vag sager UI att det har varit torrt men att anvandaren ska kontrollera jorden innan vattning.
+- Version 3.4 skapar ingen watering history, inga watering events, ingen water alert-tabell, ingen soil-moisture-modell, ingen varmevakt och ingen push/notifieringsmotor.
