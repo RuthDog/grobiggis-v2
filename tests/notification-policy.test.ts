@@ -172,14 +172,19 @@ test("notification policy stays separated from UI signals, assessments, provider
   const policy = readFileSync("src/domain/notification-policy.ts", "utf8");
   const server = readFileSync("src/lib/notifications/server.ts", "utf8");
   const todayPage = readFileSync("src/app/idag/page.tsx", "utf8");
+  const serviceWorker = readFileSync("public/sw.js", "utf8");
   const source = `${policy}\n${server}`;
 
   assert.match(server, /getSignalsForUser/);
   assert.doesNotMatch(policy, /FrostAssessment|WaterAssessment|HeatAssessment|fetchWeatherForecast|Open-Meteo|weather_code|temperature_2m|et0_fao_evapotranspiration/);
   assert.doesNotMatch(todayPage, /NotificationCandidate|notification-policy|notifications\/server/);
   assert.doesNotMatch(source, /serviceWorker|PushManager|Notification\.requestPermission|VAPID|Queue|Cron|scheduled|send|INSERT|UPDATE|DELETE|db\./i);
+  assert.match(serviceWorker, /skipWaiting/);
+  assert.match(serviceWorker, /clients\.claim/);
+  assert.doesNotMatch(serviceWorker, /showNotification|notificationclick|caches\.|fetch\(|PushManager|VAPID/i);
 
   for (const file of sourceFiles("public")) {
+    if (file.endsWith("sw.js")) continue;
     assert.doesNotMatch(readFileSync(file, "utf8"), /serviceWorker|PushManager|VAPID|push/i);
   }
 });

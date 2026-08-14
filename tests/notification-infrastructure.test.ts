@@ -5,23 +5,28 @@ import { join } from "node:path";
 import { notificationDeliveryLog, notificationPreferences, pushSubscriptions } from "../src/db/schema.ts";
 import {
   NotificationInfrastructureInputError,
+  PushSubscriptionOwnershipConflictError,
   disabledNotificationPreferenceSettings,
   notificationDeliveryInputFromCandidate,
   validateNotificationSignalType,
+  validateRevokePushSubscriptionInput,
   validatePushSubscriptionInput,
   validateSaveNotificationPreferencesInput,
   type NotificationDeliveryLogEntry,
   type NotificationPreference,
   type PushSubscription,
+  type PushSubscriptionEndpointStatus,
 } from "../src/domain/notification-infrastructure.ts";
 import type { NotificationCandidate } from "../src/domain/notification-policy.ts";
 import {
   addPushSubscriptionForUser,
+  ensurePushSubscriptionActiveForUser,
   getNotificationPreferencesForUser,
   hasNotificationDeliveryForUser,
   listActivePushSubscriptionsForUser,
   recordNotificationCandidateDeliveryForUser,
   recordNotificationDeliveryForUser,
+  revokePushSubscriptionEndpointForUser,
   revokePushSubscriptionForUser,
   saveNotificationPreferencesForUser,
 } from "../src/lib/notification-infrastructure/service.ts";
@@ -60,6 +65,7 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
   async addOrRefreshForUser(userId: string, subscription: PushSubscription) {
     const existing = [...this.rows.values()].find((row) => row.endpoint === subscription.endpoint);
     if (existing && existing.userId !== userId) throw new Error("Push subscription endpoint already belongs to another user.");
+
     const snapshot = {
       ...structuredClone(subscription),
       userId,
@@ -67,6 +73,7 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
       createdAt: existing?.createdAt ?? subscription.createdAt,
       revokedAt: null,
     };
+
     if (existing) this.rows.delete(existing.id);
     this.rows.set(snapshot.id, snapshot);
     return structuredClone(snapshot);
@@ -78,11 +85,26 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
       .map((row) => structuredClone(row));
   }
 
+  async endpointStatusForUser(userId: string, endpoint: string): Promise<PushSubscriptionEndpointStatus> {
+    const row = [...this.rows.values()].find((subscription) => subscription.endpoint === endpoint);
+    if (!row) return "not_found";
+    if (row.userId !== userId) return "owned_by_other";
+    return row.revokedAt === null ? "active" : "same_user_revoked";
+  }
+
   async revokeForUser(userId: string, subscriptionId: string, revokedAt: string) {
     const row = this.rows.get(subscriptionId);
     if (!row || row.userId !== userId) return null;
     const snapshot = { ...row, revokedAt, updatedAt: revokedAt };
     this.rows.set(subscriptionId, snapshot);
+    return structuredClone(snapshot);
+  }
+
+  async revokeByEndpointForUser(userId: string, endpoint: string, revokedAt: string) {
+    const row = [...this.rows.values()].find((subscription) => subscription.userId === userId && subscription.endpoint === endpoint);
+    if (!row) return null;
+    const snapshot = { ...row, revokedAt, updatedAt: revokedAt };
+    this.rows.set(row.id, snapshot);
     return structuredClone(snapshot);
   }
 }
@@ -111,6 +133,7 @@ class MemoryNotificationDeliveryRepository implements NotificationDeliveryReposi
 const userA = { id: "user-a" };
 const userB = { id: "user-b" };
 const read = (path: string) => readFileSync(path, "utf8");
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
@@ -205,7 +228,7 @@ test("push subscriptions support multiple devices, unique endpoints and user-sco
   await addPushSubscriptionForUser(repository, userB, fakeSubscription("c"), createId, new Date("2026-08-14T10:02:00Z"));
 
   assert.deepEqual((await listActivePushSubscriptionsForUser(repository, userA)).map((row) => row.id), [first.id, second.id]);
-  await assert.rejects(() => addPushSubscriptionForUser(repository, userB, fakeSubscription("a"), createId), /already belongs/);
+  await assert.rejects(() => addPushSubscriptionForUser(repository, userB, fakeSubscription("a"), createId), /tillhör redan en annan användare/);
   assert.equal(await revokePushSubscriptionForUser(repository, userB, first.id), null);
 
   const revoked = await revokePushSubscriptionForUser(repository, userA, first.id, new Date("2026-08-14T10:03:00Z"));
@@ -213,14 +236,177 @@ test("push subscriptions support multiple devices, unique endpoints and user-sco
   assert.deepEqual((await listActivePushSubscriptionsForUser(repository, userA)).map((row) => row.id), [second.id]);
 });
 
+test("push subscriptions support same-user idempotency, reactivation and endpoint revoke", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+
+  const first = await addPushSubscriptionForUser(repository, userA, fakeSubscription("same-user"), createId, new Date("2026-08-14T10:00:00Z"));
+  const repeated = await addPushSubscriptionForUser(
+    repository,
+    userA,
+    { ...fakeSubscription("same-user"), p256dh: "updated-p256dh", auth: "updated-auth" },
+    createId,
+    new Date("2026-08-14T10:01:00Z"),
+  );
+
+  assert.equal(first.id, repeated.id);
+  assert.equal(repository.rows.size, 1);
+  assert.equal(repeated.p256dh, "updated-p256dh");
+
+  const revoked = await revokePushSubscriptionEndpointForUser(repository, userA, { endpoint: first.endpoint }, new Date("2026-08-14T10:02:00Z"));
+  assert.equal(revoked?.revokedAt, "2026-08-14T10:02:00.000Z");
+  assert.deepEqual(await listActivePushSubscriptionsForUser(repository, userA), []);
+
+  const reactivated = await addPushSubscriptionForUser(
+    repository,
+    userA,
+    { ...fakeSubscription("same-user"), p256dh: "reactivated-p256dh", auth: "reactivated-auth" },
+    createId,
+    new Date("2026-08-14T10:03:00Z"),
+  );
+
+  assert.equal(reactivated.id, first.id);
+  assert.equal(reactivated.revokedAt, null);
+  assert.equal((await listActivePushSubscriptionsForUser(repository, userA)).length, 1);
+});
+
+test("syncing a revoked same-user endpoint reactivates it and updates keys", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+  const first = await addPushSubscriptionForUser(repository, userA, fakeSubscription("sync-same-endpoint"), createId, new Date("2026-08-14T10:00:00Z"));
+
+  await revokePushSubscriptionEndpointForUser(repository, userA, { endpoint: first.endpoint }, new Date("2026-08-14T10:01:00Z"));
+  assert.equal((await listActivePushSubscriptionsForUser(repository, userA)).length, 0);
+
+  const result = await ensurePushSubscriptionActiveForUser(
+    repository,
+    userA,
+    { ...fakeSubscription("sync-same-endpoint"), p256dh: "synced-p256dh", auth: "synced-auth" },
+    createId,
+    new Date("2026-08-14T10:02:00Z"),
+  );
+
+  const active = await listActivePushSubscriptionsForUser(repository, userA);
+  assert.deepEqual(result, { status: "reactivated" });
+  assert.equal(active.length, 1);
+  assert.equal(active[0]?.id, first.id);
+  assert.equal(active[0]?.revokedAt, null);
+  assert.equal(active[0]?.p256dh, "synced-p256dh");
+  assert.equal(active[0]?.auth, "synced-auth");
+});
+
+test("reactivation with a new endpoint keeps old revoked rows and creates a new active row", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+  const first = await addPushSubscriptionForUser(repository, userA, fakeSubscription("old-endpoint"), createId, new Date("2026-08-14T10:00:00Z"));
+
+  await revokePushSubscriptionEndpointForUser(repository, userA, { endpoint: first.endpoint }, new Date("2026-08-14T10:01:00Z"));
+  const result = await ensurePushSubscriptionActiveForUser(repository, userA, fakeSubscription("new-endpoint"), createId, new Date("2026-08-14T10:02:00Z"));
+
+  const active = await listActivePushSubscriptionsForUser(repository, userA);
+  assert.deepEqual(result, { status: "registered" });
+  assert.equal(repository.rows.size, 2);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]?.endpoint, fakeSubscription("new-endpoint").endpoint);
+  assert.equal(repository.rows.get(first.id)?.revokedAt, "2026-08-14T10:01:00.000Z");
+});
+
+test("syncing an already active endpoint is read-only at repository level", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+
+  await addPushSubscriptionForUser(repository, userA, fakeSubscription("already-active"), createId, new Date("2026-08-14T10:00:00Z"));
+  const result = await ensurePushSubscriptionActiveForUser(
+    repository,
+    userA,
+    { ...fakeSubscription("already-active"), p256dh: "ignored-p256dh", auth: "ignored-auth" },
+    createId,
+    new Date("2026-08-14T10:01:00Z"),
+  );
+
+  const active = await listActivePushSubscriptionsForUser(repository, userA);
+  assert.deepEqual(result, { status: "active" });
+  assert.equal(active.length, 1);
+  assert.equal(active[0]?.p256dh, fakeSubscription("already-active").p256dh);
+});
+
+test("push lifecycle keeps existing notification preferences unchanged", async () => {
+  const preferenceRepository = new MemoryNotificationPreferenceRepository();
+  const pushRepository = new MemoryPushSubscriptionRepository();
+  const deliveryRepository = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const expectedPreferences = { frost: false, watering: true, heat: true };
+
+  await saveNotificationPreferencesForUser(preferenceRepository, userA, expectedPreferences, createId, new Date("2026-08-14T10:00:00Z"));
+
+  await addPushSubscriptionForUser(pushRepository, userA, fakeSubscription("preference-isolation"), createId, new Date("2026-08-14T10:01:00Z"));
+  assert.deepEqual(await getNotificationPreferencesForUser(preferenceRepository, userA), expectedPreferences);
+
+  await revokePushSubscriptionEndpointForUser(
+    pushRepository,
+    userA,
+    { endpoint: fakeSubscription("preference-isolation").endpoint },
+    new Date("2026-08-14T10:02:00Z"),
+  );
+  assert.deepEqual(await getNotificationPreferencesForUser(preferenceRepository, userA), expectedPreferences);
+
+  await ensurePushSubscriptionActiveForUser(
+    pushRepository,
+    userA,
+    { ...fakeSubscription("preference-isolation"), p256dh: "reactivated-p256dh", auth: "reactivated-auth" },
+    createId,
+    new Date("2026-08-14T10:03:00Z"),
+  );
+
+  assert.deepEqual(await getNotificationPreferencesForUser(preferenceRepository, userA), expectedPreferences);
+  assert.equal((await listActivePushSubscriptionsForUser(pushRepository, userA)).length, 1);
+  assert.equal(deliveryRepository.rows.size, 0);
+});
+
+test("preference save keeps active push subscriptions unchanged", async () => {
+  const preferenceRepository = new MemoryNotificationPreferenceRepository();
+  const pushRepository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+  const subscription = await addPushSubscriptionForUser(pushRepository, userA, fakeSubscription("preference-save"), createId, new Date("2026-08-14T10:00:00Z"));
+
+  await saveNotificationPreferencesForUser(
+    preferenceRepository,
+    userA,
+    { frost: false, watering: true, heat: true },
+    createId,
+    new Date("2026-08-14T10:01:00Z"),
+  );
+
+  const active = await listActivePushSubscriptionsForUser(pushRepository, userA);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]?.id, subscription.id);
+});
+
+test("cross-account endpoint conflicts stay opaque and cannot be silently reassigned", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+
+  await addPushSubscriptionForUser(repository, userA, fakeSubscription("shared-browser"), createId, new Date("2026-08-14T10:00:00Z"));
+
+  await assert.rejects(
+    () => addPushSubscriptionForUser(repository, userB, fakeSubscription("shared-browser"), createId, new Date("2026-08-14T10:01:00Z")),
+    PushSubscriptionOwnershipConflictError,
+  );
+
+  assert.equal(await revokePushSubscriptionEndpointForUser(repository, userB, { endpoint: fakeSubscription("shared-browser").endpoint }), null);
+  assert.equal((await listActivePushSubscriptionsForUser(repository, userA)).length, 1);
+});
+
 test("push subscription validation treats endpoint and keys as server-owned sensitive delivery data", () => {
   assert.deepEqual(validatePushSubscriptionInput(fakeSubscription("round-trip")), fakeSubscription("round-trip"));
   assert.throws(() => validatePushSubscriptionInput({ ...fakeSubscription("bad"), endpoint: "http://push.example.test/bad" }), /HTTPS/);
   assert.throws(() => validatePushSubscriptionInput({ ...fakeSubscription("bad"), userId: "client-user" }), NotificationInfrastructureInputError);
+  assert.deepEqual(validateRevokePushSubscriptionInput({ endpoint: "https://push.example.test/revoke" }), { endpoint: "https://push.example.test/revoke" });
+  assert.throws(() => validateRevokePushSubscriptionInput({ endpoint: "http://push.example.test/revoke" }), /HTTPS/);
 
-  const profilePage = read("src/app/profil/page.tsx");
-  const preferenceForm = read("src/components/NotificationPreferencesForm.tsx");
-  assert.doesNotMatch(`${profilePage}\n${preferenceForm}`, /endpoint|p256dh|auth:|PushManager|Notification\.requestPermission|serviceWorker|VAPID/);
+  const actions = read("src/lib/notification-infrastructure/actions.ts");
+  const pushCard = read("src/components/PushNotificationsCard.tsx");
+  assert.doesNotMatch(`${actions}\n${pushCard}`, /p256dh|auth:/);
 });
 
 test("deduplication state is user-level and allows different users to share the same key", async () => {
@@ -260,18 +446,25 @@ test("ordinary pages and signal evaluation do not write delivery state or build 
   const signalsServer = read("src/lib/signals/server.ts");
   const infrastructureServer = read("src/lib/notification-infrastructure/server.ts");
   const infrastructureActions = read("src/lib/notification-infrastructure/actions.ts");
+  const pushClient = read("src/lib/push/client.ts");
+  const pushServer = read("src/lib/push/server.ts");
+  const profilePage = read("src/app/profil/page.tsx");
   const publicSource = sourceFiles("public").map((file) => read(file)).join("\n");
 
   assert.doesNotMatch(`${todayPage}\n${weatherPage}\n${notificationsServer}\n${signalsServer}`, /recordNotification|notificationDelivery|pushSubscriptions|serviceWorker|PushManager|VAPID|Cron|Queue|scheduled|sendPush/i);
-  assert.doesNotMatch(`${infrastructureServer}\n${infrastructureActions}`, /PushManager|Notification\.requestPermission|serviceWorker|VAPID|sendPush|deliverCandidate|processNotificationQueue|runNotificationCron/i);
-  assert.doesNotMatch(publicSource, /service-worker\.js|sw\.js|VAPID_PUBLIC_KEY|VAPID_PRIVATE_KEY|PushManager|serviceWorker/i);
+  assert.doesNotMatch(`${infrastructureServer}\n${infrastructureActions}\n${pushServer}\n${pushClient}\n${profilePage}`, /sendWebPush|createVapidJwt|encryptPayload|deliverCandidate|processNotificationQueue|runNotificationCron|showNotification|notificationclick|fetch\(/i);
+  assert.match(publicSource, /skipWaiting/);
+  assert.match(publicSource, /clients\.claim/);
+  assert.doesNotMatch(publicSource, /showNotification|notificationclick|caches\.|fetch\(/i);
 });
 
 test("profile UI copy is honest about future push notifications", () => {
   const page = read("src/app/profil/page.tsx");
   const form = read("src/components/NotificationPreferencesForm.tsx");
   const actions = read("src/lib/notification-infrastructure/actions.ts");
-  const combined = `${page}\n${form}\n${actions}`;
+  const pushCard = read("src/components/PushNotificationsCard.tsx");
+  const pushClient = read("src/lib/push/client.ts");
+  const combined = `${page}\n${form}\n${actions}\n${pushCard}`;
 
   assert.match(page, /getCurrentUserNotificationPreferences/);
   assert.match(form, /Välj vilka typer av odlingsnotiser du vill kunna få när pushnotiser aktiveras/);
@@ -279,6 +472,16 @@ test("profile UI copy is honest about future push notifications", () => {
   assert.match(form, /Frostvarningar/);
   assert.match(form, /Bevattningspåminnelser/);
   assert.match(form, /Värmesignaler/);
+  assert.match(pushCard, /Pushnotiser kräver tillåtelse från din webbläsare\. Du kan stänga av dem igen när du vill\./);
+  assert.match(pushCard, /Aktivera pushnotiser/);
+  assert.match(pushCard, /Stäng av pushnotiser på den här enheten/);
+  assert.equal((pushCard.match(/Pushnotiser är aktiverade på den här enheten\./g) ?? []).length, 1);
+  assert.match(pushClient, /På iPhone och iPad kan Grobiggis behöva läggas till på hemskärmen för att använda pushnotiser\./);
+  assert.match(form, /notification-preferences-intent/);
+  assert.match(form, /isExplicitPreferenceSave/);
+  assert.match(pushCard, /onClick=\{activate\}[\s\S]*type="button"/);
+  assert.match(pushCard, /onClick=\{deactivate\}[\s\S]*type="button"/);
   assert.match(actions, /revalidatePath\("\/profil"\)/);
-  assert.doesNotMatch(combined, /Aktivera pushnotiser|Du får nu notiser|Tillåt notiser|navigator|permission/i);
+  assert.doesNotMatch(`${page}\n${form}\n${actions}`, /Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
+  assert.doesNotMatch(combined, /sendWebPush|createVapidJwt|encryptPayload|delivery_log/i);
 });

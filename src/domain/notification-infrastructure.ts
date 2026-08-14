@@ -5,6 +5,7 @@ export const notificationSignalTypes = ["frost", "watering", "heat"] as const sa
 export type NotificationPreferenceSettings = Record<SignalType, boolean>;
 
 export class NotificationInfrastructureInputError extends Error {}
+export class PushSubscriptionOwnershipConflictError extends Error {}
 
 export interface NotificationPreference {
   id: string;
@@ -45,6 +46,8 @@ export type NewPushSubscriptionInput = {
   auth: string;
 };
 
+export type PushSubscriptionEndpointStatus = "active" | "same_user_revoked" | "not_found" | "owned_by_other";
+
 export type NewNotificationDeliveryLogInput = {
   candidateId: string;
   signalId: string;
@@ -69,6 +72,12 @@ function validateRequiredString(value: unknown, message: string, maxLength = 500
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > maxLength) throw new NotificationInfrastructureInputError(message);
   return trimmed;
+}
+
+export function validatePushSubscriptionEndpoint(value: unknown, message = "Push-endpoint saknas.") {
+  const endpoint = validateRequiredString(value, message, 2048);
+  if (!/^https:\/\//i.test(endpoint)) throw new NotificationInfrastructureInputError("Push-endpoint måste vara HTTPS.");
+  return endpoint;
 }
 
 export function assertNotificationUser(user: { id: string } | null | undefined) {
@@ -130,13 +139,19 @@ export function validatePushSubscriptionInput(input: unknown): NewPushSubscripti
   if (!isRecord(input)) throw new NotificationInfrastructureInputError("Push-prenumerationen kunde inte sparas.");
   rejectServerOwnedFields(input, ["id", "userId", "createdAt", "updatedAt", "revokedAt"], "Push-prenumerationen kunde inte sparas.");
 
-  const endpoint = validateRequiredString(input.endpoint, "Push-endpoint saknas.", 2048);
-  if (!/^https:\/\//i.test(endpoint)) throw new NotificationInfrastructureInputError("Push-endpoint måste vara HTTPS.");
-
   return {
-    endpoint,
+    endpoint: validatePushSubscriptionEndpoint(input.endpoint),
     p256dh: validateRequiredString(input.p256dh, "Push-nyckeln saknas.", 512),
     auth: validateRequiredString(input.auth, "Push-auth saknas.", 512),
+  };
+}
+
+export function validateRevokePushSubscriptionInput(input: unknown) {
+  if (!isRecord(input)) throw new NotificationInfrastructureInputError("Push-prenumerationen kunde inte stängas av.");
+  rejectServerOwnedFields(input, ["id", "userId", "createdAt", "updatedAt", "revokedAt", "subscriptionId"], "Push-prenumerationen kunde inte stängas av.");
+
+  return {
+    endpoint: validatePushSubscriptionEndpoint(input.endpoint, "Push-endpoint saknas."),
   };
 }
 

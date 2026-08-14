@@ -12,6 +12,7 @@ import type {
   NotificationDeliveryLogEntry,
   NotificationPreference,
   PushSubscription,
+  PushSubscriptionEndpointStatus,
 } from "../domain/notification-infrastructure.ts";
 
 export interface NotificationPreferenceRepository {
@@ -21,8 +22,10 @@ export interface NotificationPreferenceRepository {
 
 export interface PushSubscriptionRepository {
   addOrRefreshForUser(userId: string, subscription: PushSubscription): Promise<PushSubscription>;
+  endpointStatusForUser(userId: string, endpoint: string): Promise<PushSubscriptionEndpointStatus>;
   listActiveForUser(userId: string): Promise<PushSubscription[]>;
   revokeForUser(userId: string, subscriptionId: string, revokedAt: string): Promise<PushSubscription | null>;
+  revokeByEndpointForUser(userId: string, endpoint: string, revokedAt: string): Promise<PushSubscription | null>;
 }
 
 export interface NotificationDeliveryRepository {
@@ -221,6 +224,21 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
     return rows.map(rowToPushSubscription).toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
+  async endpointStatusForUser(userId: string, endpoint: string): Promise<PushSubscriptionEndpointStatus> {
+    const [row] = await this.db
+      .select({
+        userId: pushSubscriptions.userId,
+        revokedAt: pushSubscriptions.revokedAt,
+      })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .limit(1);
+
+    if (!row) return "not_found";
+    if (row.userId !== userId) return "owned_by_other";
+    return row.revokedAt === null ? "active" : "same_user_revoked";
+  }
+
   async revokeForUser(userId: string, subscriptionId: string, revokedAt: string) {
     const [row] = await this.db
       .select()
@@ -234,6 +252,23 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
       .update(pushSubscriptions)
       .set({ revokedAt, updatedAt: revokedAt })
       .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.id, subscriptionId)));
+
+    return rowToPushSubscription({ ...row, revokedAt, updatedAt: revokedAt });
+  }
+
+  async revokeByEndpointForUser(userId: string, endpoint: string, revokedAt: string) {
+    const [row] = await this.db
+      .select()
+      .from(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)))
+      .limit(1);
+
+    if (!row) return null;
+
+    await this.db
+      .update(pushSubscriptions)
+      .set({ revokedAt, updatedAt: revokedAt })
+      .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)));
 
     return rowToPushSubscription({ ...row, revokedAt, updatedAt: revokedAt });
   }

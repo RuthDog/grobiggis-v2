@@ -4,6 +4,8 @@ import {
   notificationDeliveryInputFromCandidate,
   notificationPreferencesToSettings,
   notificationSignalTypes,
+  PushSubscriptionOwnershipConflictError,
+  validateRevokePushSubscriptionInput,
   validateNotificationDeliveryLogInput,
   validatePushSubscriptionInput,
   validateSaveNotificationPreferencesInput,
@@ -63,14 +65,44 @@ export async function addPushSubscriptionForUser(
   const subscription = validatePushSubscriptionInput(input);
   const timestamp = now.toISOString();
 
-  return repository.addOrRefreshForUser(userId, {
-    id: createId(),
-    userId,
-    ...subscription,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    revokedAt: null,
-  });
+  try {
+    return await repository.addOrRefreshForUser(userId, {
+      id: createId(),
+      userId,
+      ...subscription,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      revokedAt: null,
+    });
+  } catch (error) {
+    if (error instanceof Error && /already belongs to another user/i.test(error.message)) {
+      throw new PushSubscriptionOwnershipConflictError("Push-prenumerationen tillhör redan en annan användare.");
+    }
+    throw error;
+  }
+}
+
+export async function ensurePushSubscriptionActiveForUser(
+  repository: PushSubscriptionRepository,
+  user: { id: string } | null | undefined,
+  input: unknown,
+  createId: () => string = () => crypto.randomUUID(),
+  now: Date = new Date(),
+) {
+  const userId = assertNotificationUser(user);
+  const subscription = validatePushSubscriptionInput(input);
+  const status = await repository.endpointStatusForUser(userId, subscription.endpoint);
+
+  if (status === "active") {
+    return { status: "active" as const };
+  }
+
+  if (status === "owned_by_other") {
+    throw new PushSubscriptionOwnershipConflictError("Push-prenumerationen tillhÃ¶r redan en annan anvÃ¤ndare.");
+  }
+
+  await addPushSubscriptionForUser(repository, user, subscription, createId, now);
+  return { status: status === "same_user_revoked" ? "reactivated" as const : "registered" as const };
 }
 
 export async function listActivePushSubscriptionsForUser(repository: PushSubscriptionRepository, user: { id: string } | null | undefined) {
@@ -86,6 +118,17 @@ export async function revokePushSubscriptionForUser(
   const userId = assertNotificationUser(user);
   if (typeof subscriptionId !== "string" || !subscriptionId.trim()) return null;
   return repository.revokeForUser(userId, subscriptionId, now.toISOString());
+}
+
+export async function revokePushSubscriptionEndpointForUser(
+  repository: PushSubscriptionRepository,
+  user: { id: string } | null | undefined,
+  input: unknown,
+  now: Date = new Date(),
+) {
+  const userId = assertNotificationUser(user);
+  const { endpoint } = validateRevokePushSubscriptionInput(input);
+  return repository.revokeByEndpointForUser(userId, endpoint, now.toISOString());
 }
 
 export async function hasNotificationDeliveryForUser(

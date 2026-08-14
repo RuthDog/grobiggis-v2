@@ -6,7 +6,13 @@ import {
   DrizzleNotificationPreferenceRepository,
   DrizzlePushSubscriptionRepository,
 } from "@/repositories/notification-infrastructure-repository";
-import { getNotificationPreferencesForUser, saveNotificationPreferencesForUser } from "./service";
+import {
+  addPushSubscriptionForUser,
+  ensurePushSubscriptionActiveForUser,
+  getNotificationPreferencesForUser,
+  revokePushSubscriptionEndpointForUser,
+  saveNotificationPreferencesForUser,
+} from "./service";
 
 async function getNotificationInfrastructureDbForRequest() {
   const { env } = await getCloudflareContext({ async: true });
@@ -35,4 +41,19 @@ export async function getCurrentUserNotificationPreferences() {
 export async function saveCurrentUserNotificationPreferences(input: unknown) {
   const user = await requireUser();
   return saveNotificationPreferencesForUser(await getNotificationPreferenceRepositoryForRequest(), user, input);
+}
+
+export async function registerCurrentUserPushSubscription(input: unknown) {
+  const user = await requireUser();
+  return addPushSubscriptionForUser(await getPushSubscriptionRepositoryForRequest(), user, input);
+}
+
+export async function ensureCurrentUserPushSubscriptionActive(input: unknown) {
+  const user = await requireUser();
+  return ensurePushSubscriptionActiveForUser(await getPushSubscriptionRepositoryForRequest(), user, input);
+}
+
+export async function revokeCurrentUserPushSubscription(input: unknown) {
+  const user = await requireUser();
+  return revokePushSubscriptionEndpointForUser(await getPushSubscriptionRepositoryForRequest(), user, input);
 }

@@ -4,6 +4,13 @@ import { useState, useTransition, type FormEvent } from "react";
 import type { NotificationPreferenceSettings } from "@/domain/notification-infrastructure";
 import { saveNotificationPreferencesAction } from "@/lib/notification-infrastructure/actions";
 
+const preferenceSaveIntent = "save-notification-preferences";
+
+function isExplicitPreferenceSave(event: FormEvent<HTMLFormElement>) {
+  const submitter = (event.nativeEvent as SubmitEvent).submitter;
+  return submitter instanceof HTMLButtonElement && submitter.name === "notification-preferences-intent" && submitter.value === preferenceSaveIntent;
+}
+
 const labels: Record<keyof NotificationPreferenceSettings, string> = {
   frost: "Frostvarningar",
   watering: "Bevattningspåminnelser",
@@ -17,6 +24,8 @@ export function NotificationPreferencesForm({ preferences }: Readonly<{ preferen
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isExplicitPreferenceSave(event)) return;
+
     setMessage("");
 
     startTransition(async () => {
@@ -64,7 +73,9 @@ export function NotificationPreferencesForm({ preferences }: Readonly<{ preferen
       <button
         className="min-h-12 rounded-full bg-[var(--forest)] px-5 text-sm font-bold text-white shadow-[0_12px_26px_rgba(25,69,56,0.18)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isPending}
+        name="notification-preferences-intent"
         type="submit"
+        value={preferenceSaveIntent}
       >
         {isPending ? "Sparar..." : "Spara notisval"}
       </button>

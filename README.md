@@ -241,3 +241,18 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Repository- och service-lagren tar user authority från serverns verifierade session. Klienten skickar aldrig `userId` som authority.
 - Vanliga requests till `/`, `/idag`, `/vader` och `/profil` skapar inga subscription-rader, inga delivery-rader och gör inga notification attempts.
 - Migration `0005_*` ska vara lokal tills remote-körning uttryckligen godkänts.
+
+## Version 3.9 - Web Push subscriptions
+
+- Version 3.9 lägger till explicit browser opt-in för pushnotiser på `/profil`, men skickar fortfarande ingen faktisk push.
+- Notification permission begärs endast via användarens tydliga klick på `Aktivera pushnotiser`, aldrig vid sidladdning, inloggning eller preferences-save.
+- Preference-valen i notifieringsinfrastrukturen är fortsatt separata från browser permission och från om den aktuella enheten faktiskt har en aktiv `PushSubscription`.
+- Browser-prenumerationer är device- och browser-specifika. Samma Better Auth-användare kan därför ha flera aktiva subscriptions samtidigt.
+- Endpoint ownership skyddar mot account switching på delad browser: en globalt unik endpoint får aldrig tyst flyttas från användare A till användare B.
+- Subscription secrets (`endpoint`, `p256dh`, `auth`) lagras bara för delivery-grunden. De visas inte i UI och loggas inte i vanlig appkod.
+- Avaktivering använder soft revoke via `revoked_at`. Browsern kan stänga av push på den här enheten utan hard delete.
+- Service workern i `public/sw.js` är minimal och finns bara för Web Push-grunden. Den bygger inte offline-cache, ändrar inte routing och hanterar ännu inte riktiga pushpayloads.
+- iPhone och iPad kan kräva att Grobiggis körs som webbapp från hemskärmen för att Web Push ska kunna användas. UI:t säger detta försiktigt bara som produktcopy vid relevant supportläge.
+- Version 3.9 bygger ingen delivery-motor, ingen `sendWebPush(...)`, ingen VAPID-signering, ingen Cron, ingen Queue och ingen background evaluation.
+- `notification_delivery_log` ska därför fortfarande förbli tomt i normal användning efter 3.9.
+- Production behöver ett stabilt VAPID key pair där `VAPID_PUBLIC_KEY` får användas av browsern som `applicationServerKey`, medan `VAPID_PRIVATE_KEY` måste hållas hemlig och aldrig får committas.

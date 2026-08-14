@@ -1,11 +1,32 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { NotificationInfrastructureInputError, type NotificationPreferenceSettings } from "@/domain/notification-infrastructure";
-import { saveCurrentUserNotificationPreferences } from "./server";
+import {
+  NotificationInfrastructureInputError,
+  PushSubscriptionOwnershipConflictError,
+  type NotificationPreferenceSettings,
+} from "@/domain/notification-infrastructure";
+import {
+  ensureCurrentUserPushSubscriptionActive,
+  registerCurrentUserPushSubscription,
+  revokeCurrentUserPushSubscription,
+  saveCurrentUserNotificationPreferences,
+} from "./server";
 
 export type NotificationPreferencesActionResult =
   | { ok: true; preferences: NotificationPreferenceSettings }
+  | { ok: false; error: string };
+
+export type RegisterPushSubscriptionActionResult =
+  | { ok: true }
+  | { ok: false; code?: "endpoint_conflict"; error: string };
+
+export type SyncPushSubscriptionActionResult =
+  | { ok: true; status: "active" | "registered" | "reactivated" }
+  | { ok: false; code?: "endpoint_conflict"; error: string };
+
+export type RevokePushSubscriptionActionResult =
+  | { ok: true }
   | { ok: false; error: string };
 
 function messageForError(error: unknown, fallback: string) {
@@ -21,5 +42,59 @@ export async function saveNotificationPreferencesAction(input: unknown): Promise
     return { ok: true, preferences };
   } catch (error) {
     return { ok: false, error: messageForError(error, "Notisinställningarna kunde inte sparas.") };
+  }
+}
+
+export async function registerPushSubscriptionAction(input: unknown): Promise<RegisterPushSubscriptionActionResult> {
+  try {
+    await registerCurrentUserPushSubscription(input);
+    revalidatePath("/profil");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof PushSubscriptionOwnershipConflictError) {
+      return { ok: false, code: "endpoint_conflict", error: "Pushnotiser kunde inte aktiveras på den här enheten just nu." };
+    }
+    if (error instanceof NotificationInfrastructureInputError) {
+      return { ok: false, error: "Pushnotiser kunde inte aktiveras på den här enheten just nu." };
+    }
+    if (error instanceof Error && /Authentication required/i.test(error.message)) {
+      return { ok: false, error: "Du behöver logga in." };
+    }
+    return { ok: false, error: "Pushnotiser kunde inte aktiveras på den här enheten just nu." };
+  }
+}
+
+export async function syncPushSubscriptionAction(input: unknown): Promise<SyncPushSubscriptionActionResult> {
+  try {
+    const result = await ensureCurrentUserPushSubscriptionActive(input);
+    revalidatePath("/profil");
+    return { ok: true, status: result.status };
+  } catch (error) {
+    if (error instanceof PushSubscriptionOwnershipConflictError) {
+      return { ok: false, code: "endpoint_conflict", error: "Pushnotiser behÃ¶ver aktiveras om pÃ¥ den hÃ¤r enheten." };
+    }
+    if (error instanceof NotificationInfrastructureInputError) {
+      return { ok: false, error: "Pushnotiser kunde inte synkas pÃ¥ den hÃ¤r enheten." };
+    }
+    if (error instanceof Error && /Authentication required/i.test(error.message)) {
+      return { ok: false, error: "Du behÃ¶ver logga in." };
+    }
+    return { ok: false, error: "Pushnotiser kunde inte synkas pÃ¥ den hÃ¤r enheten." };
+  }
+}
+
+export async function revokePushSubscriptionAction(input: unknown): Promise<RevokePushSubscriptionActionResult> {
+  try {
+    await revokeCurrentUserPushSubscription(input);
+    revalidatePath("/profil");
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof NotificationInfrastructureInputError) {
+      return { ok: false, error: "Pushnotiser kunde inte stängas av på den här enheten." };
+    }
+    if (error instanceof Error && /Authentication required/i.test(error.message)) {
+      return { ok: false, error: "Du behöver logga in." };
+    }
+    return { ok: false, error: "Pushnotiser kunde inte stängas av på den här enheten." };
   }
 }
