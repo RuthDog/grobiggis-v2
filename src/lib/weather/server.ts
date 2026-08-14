@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/server";
 import { plants } from "@/data/plants";
 import { assessFrostRisk, unavailableFrostAssessment, type FrostAssessment } from "@/domain/frost-watch";
+import { assessHeatAttention, unavailableHeatAssessment, type HeatAssessment } from "@/domain/heat-watch";
 import { assessWaterAttention, unavailableWaterAssessment, type WaterAssessment } from "@/domain/water-watch";
 import type { GrowingBatch, GrowingSpace } from "@/domain/growing-types";
 import { getGrowingRepositoryForRequest, getGrowingSpaceRepositoryForRequest } from "@/lib/growing/server";
@@ -15,17 +16,19 @@ export type CurrentUserWeatherState =
   | { status: "signed-out" }
   | { status: "missing-location"; locality: string | null }
   | { status: "error"; locality: string; error: string }
-  | { status: "ready"; forecast: WeatherForecast; frostAssessment: FrostAssessment; waterAssessment: WaterAssessment };
+  | { status: "ready"; forecast: WeatherForecast; frostAssessment: FrostAssessment; waterAssessment: WaterAssessment; heatAssessment: HeatAssessment };
 
 export interface CurrentUserWeatherAssessments {
   frostAssessment: FrostAssessment;
   waterAssessment: WaterAssessment;
+  heatAssessment: HeatAssessment;
 }
 
 function assessWeatherSignals(forecast: WeatherForecast, batches: GrowingBatch[], spaces: GrowingSpace[] = [], now = new Date()): CurrentUserWeatherAssessments {
   return {
     frostAssessment: assessFrostRisk({ forecast, batches, plantCatalog: plants, now }),
     waterAssessment: assessWaterAttention({ forecast, batches, plantCatalog: plants, growingSpaces: spaces, now }),
+    heatAssessment: assessHeatAttention({ forecast, batches, plantCatalog: plants, growingSpaces: spaces, now }),
   };
 }
 
@@ -38,7 +41,7 @@ export async function getWeatherAssessmentsForUser(
   if (!user.id) throw new Error("Authentication required.");
   const profile = await getUserProfileForUser(await getUserProfileRepositoryForRequest(), user);
   if (!profile?.locality || profile.latitude === null || profile.longitude === null) {
-    return { frostAssessment: unavailableFrostAssessment(now), waterAssessment: unavailableWaterAssessment(now) };
+    return { frostAssessment: unavailableFrostAssessment(now), waterAssessment: unavailableWaterAssessment(now), heatAssessment: unavailableHeatAssessment(now) };
   }
 
   try {
@@ -56,7 +59,7 @@ export async function getWeatherAssessmentsForUser(
 
     return assessWeatherSignals(forecast, batches, spaces, now);
   } catch {
-    return { frostAssessment: unavailableFrostAssessment(now), waterAssessment: unavailableWaterAssessment(now) };
+    return { frostAssessment: unavailableFrostAssessment(now), waterAssessment: unavailableWaterAssessment(now), heatAssessment: unavailableHeatAssessment(now) };
   }
 }
 
@@ -85,9 +88,9 @@ export async function getCurrentUserWeatherForecast(): Promise<CurrentUserWeathe
 
     const batches = await listGrowingBatchesForUser(await getGrowingRepositoryForRequest(), user);
     const spaces = await listGrowingSpacesForUser(await getGrowingSpaceRepositoryForRequest(), user);
-    const { frostAssessment, waterAssessment } = assessWeatherSignals(forecast, batches, spaces);
+    const { frostAssessment, waterAssessment, heatAssessment } = assessWeatherSignals(forecast, batches, spaces);
 
-    return { status: "ready", forecast, frostAssessment, waterAssessment };
+    return { status: "ready", forecast, frostAssessment, waterAssessment, heatAssessment };
   } catch (error) {
     if (error instanceof WeatherForecastError) return { status: "error", locality: profile.locality, error: error.message };
     return { status: "error", locality: profile.locality, error: "Vädret kunde inte hämtas just nu." };

@@ -316,6 +316,14 @@ test("loadTodayViewForUser gives water guidance only server-authorized batches a
         affectedPlants: [],
         reason: "Test",
       },
+      heatAssessment: {
+        level: "none",
+        maximumTemperature: 24,
+        hottestDate: "2026-08-12",
+        window: { start: "2026-08-12", end: "2026-08-13", timeZone: "Europe/Stockholm" },
+        affectedPlants: [],
+        reason: "Test",
+      },
       waterAssessment: assessWaterAttention({
         forecast: forecast(baseDaily()),
         batches,

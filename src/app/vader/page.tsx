@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FrostWatchCard } from "@/components/FrostWatchCard";
+import { HeatWatchCard } from "@/components/HeatWatchCard";
 import { WaterWatchCard } from "@/components/WaterWatchCard";
 import { getCurrentUserWeatherForecast } from "@/lib/weather/server";
 import { formatPrecipitation, formatTemperature, formatWeekday, formatWind, labelForCondition } from "@/services/weather/presentation";
@@ -59,7 +60,7 @@ export default async function WeatherPage() {
     );
   }
 
-  const { forecast, frostAssessment, waterAssessment } = state;
+  const { forecast, frostAssessment, waterAssessment, heatAssessment } = state;
   const currentLabel = labelForCondition(forecast.current.condition);
   const forecastDays = forecast.daily.filter((day) => !day.isPast).slice(0, 5);
 
@@ -129,6 +130,7 @@ export default async function WeatherPage() {
 
       <FrostWatchCard assessment={frostAssessment} />
       <WaterWatchCard assessment={waterAssessment} />
+      <HeatWatchCard assessment={heatAssessment} />
 
       <p className="text-sm leading-6 text-[var(--muted)]">
         <a className="font-semibold underline underline-offset-4" href={forecast.attribution.url} rel="noreferrer" target="_blank">

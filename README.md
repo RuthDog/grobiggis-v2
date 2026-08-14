@@ -185,3 +185,16 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - RHS, Utah State University Extension, Iowa State University Extension och University of Minnesota Extension anvands for vattenprofilernas forsiktiga klassning.
 - Om regn ar pa vag sager UI att det har varit torrt men att anvandaren ska kontrollera jorden innan vattning.
 - Version 3.4 skapar ingen watering history, inga watering events, ingen water alert-tabell, ingen soil-moisture-modell, ingen varmevakt och ingen push/notifieringsmotor.
+
+## Version 3.5 - Värmekoll
+
+- Värmekoll är odlingsstöd för prognostiserad värme som är relevant för användarens aktiva odlingar, inte en allmän värmevarning för människor.
+- WeatherForecast behöver ingen ny providerdata i 3.5. Daglig `temperatureMax` räcker för ett handlingsbart fönster: i dag och i morgon i Europe/Stockholm.
+- PlantHeatProfile finns för första källbelagda gruppen: `sallat`, `tomat`, `korsbarstomat`, `chili`, `paprika`, `gurka`, `zucchini`, `pumpa` och `buskbona`.
+- Basilika får ingen heat profile i 3.5 eftersom källstödet främst säger att basilika gillar värme och sol, inte en tydlig högtemperaturtröskel för odlingssignal.
+- Trösklarna är försiktiga kategorier: sallat börjar vid cirka 27 °C, tomat/körsbärstomat vid 30 °C, gurka/zucchini/pumpa/chili/paprika vid 32 °C och buskböna vid 35 °C.
+- Högre uppmärksamhet används först vid ännu varmare prognos: 30 °C för sallat, 32 °C för tomat/körsbärstomat, 35 °C för gurka/zucchini/pumpa/chili/paprika och 37 °C för buskböna.
+- University of Minnesota Extension används för värmepåverkan på tomat, paprika, bönor, gurka och cucurbits; Utah State University Extension används för sallat och bladgrönt; RHS används för att dokumentera basilika som värmeälskande snarare än alertklassad.
+- Växthusets faktiska temperatur mäts inte och räknas inte om från uteprognosen. UI kan bara ge försiktig ventilation-copy när en värmesignal redan finns.
+- Kruka kan ge försiktig placeringscopy, men Bevattningskoll ansvarar fortsatt för jordfuktighet, nederbörd och ET0.
+- Version 3.5 skapar ingen heat history, inga heat events, ingen heat alert-tabell, ingen notifieringsmotor och ingen push.

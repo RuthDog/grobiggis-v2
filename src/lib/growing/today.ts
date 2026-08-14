@@ -1,6 +1,7 @@
 import type { LocalGreeting } from "../../domain/greeting.ts";
 import type { FrostAssessment } from "../../domain/frost-watch.ts";
 import type { GrowingBatch, GrowingSpace } from "../../domain/growing-types.ts";
+import type { HeatAssessment } from "../../domain/heat-watch.ts";
 import type { WaterAssessment } from "../../domain/water-watch.ts";
 import { buildTodayViewFromBatches, type TodayActivity } from "../../domain/today-view.ts";
 import type { GrowingBatchRepository } from "../../repositories/growing-batch-repository.ts";
@@ -16,6 +17,7 @@ export type CurrentUserTodayView = {
   next: TodayActivity[];
   frostAssessment: FrostAssessment | null;
   waterAssessment: WaterAssessment | null;
+  heatAssessment: HeatAssessment | null;
 };
 
 type FrostAssessmentLoader = (user: VerifiedGrowingUser, activeBatches: GrowingBatch[], now: Date) => Promise<FrostAssessment>;
@@ -24,7 +26,7 @@ type WeatherAssessmentsLoader = (
   activeBatches: GrowingBatch[],
   spaces: GrowingSpace[],
   now: Date,
-) => Promise<{ frostAssessment: FrostAssessment; waterAssessment: WaterAssessment }>;
+) => Promise<{ frostAssessment: FrostAssessment; waterAssessment: WaterAssessment; heatAssessment: HeatAssessment }>;
 
 function requireVerifiedUserId(user: VerifiedGrowingUser) {
   if (!user.id) throw new Error("Authentication required.");
@@ -44,6 +46,7 @@ export async function loadTodayViewForUser(
   const assessments = options.loadWeatherAssessments ? await options.loadWeatherAssessments(user, view.activeBatches, spaces, now) : null;
   const frostAssessment = assessments?.frostAssessment ?? (options.loadFrostAssessment ? await options.loadFrostAssessment(user, view.activeBatches, now) : null);
   const waterAssessment = assessments?.waterAssessment ?? null;
+  const heatAssessment = assessments?.heatAssessment ?? null;
 
   return {
     greeting: view.greeting,
@@ -53,6 +56,7 @@ export async function loadTodayViewForUser(
     next: view.sections.next,
     frostAssessment,
     waterAssessment,
+    heatAssessment,
   };
 }
 

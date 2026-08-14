@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FrostWatchCard } from "@/components/FrostWatchCard";
+import { HeatWatchCard } from "@/components/HeatWatchCard";
 import { TodayActivityCard } from "@/components/TodayActivityCard";
 import { WaterWatchCard } from "@/components/WaterWatchCard";
 import { getCurrentUserTodayView } from "@/lib/growing/today";
@@ -60,6 +61,7 @@ export default async function TodayPage() {
         <div className="grid gap-8">
           {view.frostAssessment ? <FrostWatchCard assessment={view.frostAssessment} compact showNeutral={false} /> : null}
           {view.waterAssessment ? <WaterWatchCard assessment={view.waterAssessment} compact showNeutral={false} /> : null}
+          {view.heatAssessment ? <HeatWatchCard assessment={view.heatAssessment} compact showNeutral={false} /> : null}
 
           {view.today.length ? (
             <section className="grid gap-4">
