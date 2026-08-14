@@ -353,8 +353,8 @@ test("Version 3.5 adds no heat persistence, schema migration, push or provider-s
   const waterDomain = readFileSync("src/domain/water-watch.ts", "utf8");
   const combined = `${heatDomain}\n${heatData}\n${heatCard}\n${weatherServer}`;
 
-  assert.doesNotMatch(schema, /heat_alert|heat_event|weather_alert|forecast_history|push/i);
-  assert.doesNotMatch(journal, /0005_|heat_alert|heat_event|weather_alert|forecast_history/i);
+  assert.doesNotMatch(schema, /heat_alert|heat_event|weather_alert|forecast_history/i);
+  assert.doesNotMatch(journal, /heat_alert|heat_event|weather_alert|forecast_history/i);
   assert.doesNotMatch(combined, /INSERT|UPDATE|DELETE|db:generate|SMHI API|weather_code|temperature_2m|push|notification|localStorage|sessionStorage/i);
   assert.match(heatDomain, /WeatherForecast/);
   assert.match(frostDomain, /assessFrostRisk/);

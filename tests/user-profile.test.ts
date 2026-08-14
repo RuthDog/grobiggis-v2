@@ -225,7 +225,7 @@ test("profile route, action and navigation are wired through auth-backed server 
   assert.match(authNav, /Profil/);
 });
 
-test("Version 3.1 stores no provider payload and creates no migration", () => {
+test("Version 3.1 stores no provider payload and creates no profile migration", () => {
   const schema = read("src/db/schema.ts");
   const repository = read("src/repositories/user-profile-repository.ts");
   const service = read("src/lib/user-profile/service.ts");
@@ -236,5 +236,5 @@ test("Version 3.1 stores no provider payload and creates no migration", () => {
 
   assert.doesNotMatch(`${profileSchema}\n${repository}`, /providerId|admin1|admin2|timezone|population|feature_code|postcodes/i);
   assert.doesNotMatch(`${service}\n${actions}\n${form}`, /forecast|weather|SMHI|navigator\.geolocation/i);
-  assert.doesNotMatch(migrations, /0005_/);
+  assert.doesNotMatch(migrations, /provider|admin|timezone|population|feature_code|postcodes/i);
 });

@@ -224,3 +224,20 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - `src/lib/notifications/server.ts` är en tunn serverintegration för framtida användning: verifierad användare och aktiva odlingar -> `getSignalsForUser` -> `buildNotificationCandidates`.
 - Version 3.7 bygger ingen Web Push, service worker, VAPID, notification permission, subscription persistence, user preferences, sent/dedup history, quiet hours, frequency caps, scheduler, queue, cron, delivery worker eller notifieringskanal.
 - Version 3.7 skapar ingen ny D1-tabell, ingen migration, ingen Cloudflare-resurs och ingen push-/notifieringsmotor. Framtida faktisk notification delivery kräver separat design för preferenser, kanal, behörighet/subscription, historik, deduplicering och frekvensregler.
+
+## Version 3.8 - Notifieringsinfrastruktur
+
+- Version 3.8 bygger bara persistent notifieringsinfrastruktur efter `NotificationCandidate[]`: user-scopade preferenser, framtida push-prenumerationer och deduplicerad leveranshistorik.
+- Version 3.8 skickar ingen push, registrerar ingen service worker, frågar inte browsern om notification permission, använder inga VAPID-nycklar och skapar ingen scheduler, queue, cron eller delivery worker.
+- Preferenser lagras normaliserat i `notification_preferences` med en rad per `user_id + signal_type`. Signaltyperna i 3.8 är `frost`, `watering` och `heat`.
+- Ingen preference-rad betyder disabled. Migrationen skapar inga enabled-rader och ingen användare optas in automatiskt.
+- Preference-UI:t på `/profil` säger uttryckligen att användaren förbereder vilka typer av odlingsnotiser den vill kunna få när pushnotiser aktiveras senare. Ett preference-val är inte samma sak som browser permission.
+- Framtida browser-prenumerationer kan lagras i `push_subscriptions` med flera rader per användare. `endpoint` är globalt unik, men `user_id` är inte unikt eftersom en användare kan ha flera enheter eller browserprofiler.
+- Push subscription-data (`endpoint`, `p256dh`, `auth`) behandlas som känslig delivery-data. Den visas inte i UI, loggas inte i normal appkod och returneras inte från vanliga page loaders.
+- Revoke-modellen är soft revoke via `revoked_at`, så framtida cleanup kan skilja aktiva och återkallade subscriptions utan att delivery history behöver behålla subscription-raden för alltid.
+- Deduplication lagras i `notification_delivery_log` med unik spärr på `user_id + deduplication_key`. Semantiken är "den här notification state har behandlats för användaren", inte en fullständig per-device attempt-logg.
+- Multi-device-semantiken i 3.8 är därför user-level dedup. En framtida delivery-motor kan skicka samma candidate till flera aktiva subscriptions innan den skriver user-level delivered-state, eller lägga till separat attempt-logg om per-device retries behövs.
+- Deduplication key behåller 3.7:s escalation-semantik: om samma signal får nytt policytillstånd, till exempel från `attention:normal` till `important:high`, blir det en separat state.
+- Repository- och service-lagren tar user authority från serverns verifierade session. Klienten skickar aldrig `userId` som authority.
+- Vanliga requests till `/`, `/idag`, `/vader` och `/profil` skapar inga subscription-rader, inga delivery-rader och gör inga notification attempts.
+- Migration `0005_*` ska vara lokal tills remote-körning uttryckligen godkänts.

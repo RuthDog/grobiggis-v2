@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
 import { UserProfileForm } from "@/components/UserProfileForm";
 import { getCurrentUser } from "@/lib/auth/server";
+import { getCurrentUserNotificationPreferences } from "@/lib/notification-infrastructure/server";
 import { getCurrentUserProfile } from "@/lib/user-profile/server";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,7 @@ export default async function ProfilePage() {
   }
 
   const profile = await getCurrentUserProfile();
+  const notificationPreferences = await getCurrentUserNotificationPreferences();
 
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(320px,0.55fr)] lg:items-start lg:py-14">
@@ -40,7 +43,10 @@ export default async function ProfilePage() {
         </p>
       </section>
 
-      <UserProfileForm firstName={profile?.firstName} latitude={profile?.latitude} locality={profile?.locality} longitude={profile?.longitude} />
+      <div className="grid gap-5">
+        <UserProfileForm firstName={profile?.firstName} latitude={profile?.latitude} locality={profile?.locality} longitude={profile?.longitude} />
+        {notificationPreferences ? <NotificationPreferencesForm preferences={notificationPreferences} /> : null}
+      </div>
     </main>
   );
 }

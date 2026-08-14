@@ -199,7 +199,7 @@ test("Version 3.3 keeps weather and frost derived without persistence, schema mi
   const migrations = read("migrations/meta/_journal.json");
   const weatherSources = `${read("src/services/weather/open-meteo.ts")}\n${read("src/lib/weather/server.ts")}\n${read("src/app/vader/page.tsx")}`;
 
-  assert.doesNotMatch(schema, /weather_forecasts|weather_alerts|forecast_history|frost|drought|push/i);
-  assert.doesNotMatch(migrations, /0005_|weather_forecasts|weather_alerts|forecast_history/i);
+  assert.doesNotMatch(schema, /weather_forecasts|weather_alerts|forecast_history|frost_alert|drought_history/i);
+  assert.doesNotMatch(migrations, /weather_forecasts|weather_alerts|forecast_history|frost_alert|drought_history/i);
   assert.doesNotMatch(weatherSources, /INSERT|UPDATE|DELETE|db:generate|SMHI API|Nominatim|weather_forecasts|tork|push/i);
 });

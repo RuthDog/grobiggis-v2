@@ -363,7 +363,7 @@ test("Version 3.4 adds no water persistence, soil moisture model, heat watch or 
   const weatherServer = readFileSync("src/lib/weather/server.ts", "utf8");
   const combined = `${waterDomain}\n${waterData}\n${waterCard}\n${weatherServer}`;
 
-  assert.doesNotMatch(schema, /water_alert|watering_event|irrigation_history|moisture_state|drought_history|soil_moisture|push/i);
-  assert.doesNotMatch(journal, /0005_|water_alert|watering_event|irrigation_history|moisture_state|drought_history/i);
+  assert.doesNotMatch(schema, /water_alert|watering_event|irrigation_history|moisture_state|drought_history|soil_moisture/i);
+  assert.doesNotMatch(journal, /water_alert|watering_event|irrigation_history|moisture_state|drought_history/i);
   assert.doesNotMatch(combined, /INSERT|UPDATE|DELETE|db:generate|soil_moisture|heat watch|värmevarning|push|notification|localStorage|sessionStorage/i);
 });

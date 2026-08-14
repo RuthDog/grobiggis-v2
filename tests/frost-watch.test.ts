@@ -230,8 +230,8 @@ test("Frostvakt remains derived and provider-neutral", () => {
   const today = readFileSync("src/lib/growing/today.ts", "utf8");
   const combined = `${frostDomain}\n${frostData}\n${weatherServer}\n${today}`;
 
-  assert.doesNotMatch(schema, /frost|weather_alert|forecast_history|push/i);
-  assert.doesNotMatch(journal, /0005_|frost|weather_alert|forecast_history/i);
+  assert.doesNotMatch(schema, /frost_alert|frost_event|weather_alert|forecast_history/i);
+  assert.doesNotMatch(journal, /frost_alert|frost_event|weather_alert|forecast_history/i);
   assert.doesNotMatch(combined, /INSERT|UPDATE|DELETE|db:generate|SMHI API|weather_code|temperature_2m|push|notification|localStorage|sessionStorage/i);
   assert.match(frostDomain, /WeatherForecast/);
 });

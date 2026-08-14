@@ -179,6 +179,66 @@ export const userProfiles = sqliteTable(
   (table) => [uniqueIndex("user_profiles_user_id_unique").on(table.userId)],
 );
 
+export const notificationPreferences = sqliteTable(
+  "notification_preferences",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    signalType: text("signal_type", { enum: ["frost", "watering", "heat"] }).notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("notification_preferences_user_id_idx").on(table.userId),
+    uniqueIndex("notification_preferences_user_signal_unique").on(table.userId, table.signalType),
+  ],
+);
+
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    revokedAt: text("revoked_at"),
+  },
+  (table) => [
+    index("push_subscriptions_user_id_idx").on(table.userId),
+    uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+  ],
+);
+
+export const notificationDeliveryLog = sqliteTable(
+  "notification_delivery_log",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id").notNull(),
+    signalId: text("signal_id").notNull(),
+    deduplicationKey: text("deduplication_key").notNull(),
+    signalType: text("signal_type", { enum: ["frost", "watering", "heat"] }).notNull(),
+    urgency: text("urgency", { enum: ["normal", "high"] }).notNull(),
+    subscriptionId: text("subscription_id").references(() => pushSubscriptions.id, { onDelete: "set null" }),
+    deliveredAt: text("delivered_at").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("notification_delivery_log_user_id_idx").on(table.userId),
+    uniqueIndex("notification_delivery_log_user_dedup_unique").on(table.userId, table.deduplicationKey),
+  ],
+);
+
 export const growingBatchRelations = relations(growingBatches, ({ many }) => ({
   events: many(growingEvents),
 }));
@@ -217,3 +277,9 @@ export type ShoppingListItemRow = typeof shoppingListItems.$inferSelect;
 export type NewShoppingListItemRow = typeof shoppingListItems.$inferInsert;
 export type UserProfileRow = typeof userProfiles.$inferSelect;
 export type NewUserProfileRow = typeof userProfiles.$inferInsert;
+export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreferenceRow = typeof notificationPreferences.$inferInsert;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscriptionRow = typeof pushSubscriptions.$inferInsert;
+export type NotificationDeliveryLogRow = typeof notificationDeliveryLog.$inferSelect;
+export type NewNotificationDeliveryLogRow = typeof notificationDeliveryLog.$inferInsert;
