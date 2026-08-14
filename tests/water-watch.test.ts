@@ -334,18 +334,19 @@ test("loadTodayViewForUser gives water guidance only server-authorized batches a
     }),
   });
 
-  assert.deepEqual(view.waterAssessment?.affectedPlants.map((plant) => plant.batchId), ["a"]);
-  assert.equal(view.waterAssessment?.affectedPlants[0].placementType, "pot");
+  assert.deepEqual(view.signals[0]?.affectedBatches.map((plant) => plant.batchId), ["a"]);
+  assert.equal(view.signals[0]?.type, "watering");
 });
 
-test("Bevattningskoll UI is present on Vader and conditionally present on Idag", () => {
+test("Bevattningskoll UI is present on Vader and Idag uses the common signal card", () => {
   const weatherPage = readFileSync("src/app/vader/page.tsx", "utf8");
   const todayPage = readFileSync("src/app/idag/page.tsx", "utf8");
   const card = readFileSync("src/components/WaterWatchCard.tsx", "utf8");
   const visibleNotes = plantWaterProfiles.map((profile) => profile.note).join("\n");
 
   assert.match(weatherPage, /WaterWatchCard/);
-  assert.match(todayPage, /showNeutral=\{false\}/);
+  assert.match(todayPage, /SignalCard/);
+  assert.doesNotMatch(todayPage, /WaterWatchCard/);
   assert.match(card, /Bevattningskoll/);
   assert.doesNotMatch(card, /jordfuktighet.*är torr|måste vattna|liter/i);
   assert.match(visibleNotes, /Kontrollera jorden regelbundet under varma och torra perioder/);

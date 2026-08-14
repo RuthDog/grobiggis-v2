@@ -163,9 +163,21 @@ test("date-only logic uses Europe/Stockholm around midnight", () => {
 
 test("Europe/Stockholm greeting follows the intended day-part boundaries", () => {
   assert.equal(localGreeting(new Date("2026-08-09T03:00:00Z")).heading, "God morgon");
-  assert.equal(localGreeting(new Date("2026-08-09T09:30:00Z")).heading, "God formiddag");
+  assert.equal(localGreeting(new Date("2026-08-09T07:59:00Z")).heading, "God morgon");
+  assert.equal(localGreeting(new Date("2026-08-09T08:00:00Z")).heading, "God förmiddag");
   assert.equal(localGreeting(new Date("2026-08-09T14:00:00Z")).heading, "God eftermiddag");
-  assert.equal(localGreeting(new Date("2026-08-09T18:00:00Z")).heading, "God kvall");
+  assert.equal(localGreeting(new Date("2026-08-09T14:59:00Z")).heading, "God eftermiddag");
+  assert.equal(localGreeting(new Date("2026-08-09T15:00:00Z")).heading, "God kväll");
+  assert.equal(localGreeting(new Date("2026-08-09T19:59:00Z")).heading, "God kväll");
+  assert.equal(localGreeting(new Date("2026-08-09T20:00:00Z")).heading, "Hej");
+});
+
+test("Idag greeting copy keeps Swedish characters", () => {
+  const greeting = localGreeting(new Date("2026-08-09T18:00:00Z"));
+
+  assert.equal(greeting.heading, "God kväll");
+  assert.equal(greeting.support, "Här är det som är aktuellt i din odling.");
+  assert.doesNotMatch(`${greeting.heading} ${greeting.support}`, /kvall|formiddag|Har ar|behover|vader/i);
 });
 
 test("the Idag page keeps the read-only empty states and login path", () => {
@@ -173,6 +185,8 @@ test("the Idag page keeps the read-only empty states and login path", () => {
   assert.match(source, /\/logga-in/);
   assert.match(source, /Du har inga aktiva odlingar just nu/);
   assert.match(source, /Det finns inget som behover goras just idag/);
+  assert.match(source, /view\.signals/);
+  assert.match(source, /SignalCard/);
 });
 
 test("the Idag page only enables completion for current work sections", () => {

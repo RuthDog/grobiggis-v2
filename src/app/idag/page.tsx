@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { FrostWatchCard } from "@/components/FrostWatchCard";
-import { HeatWatchCard } from "@/components/HeatWatchCard";
+import { SignalCard } from "@/components/SignalCard";
 import { TodayActivityCard } from "@/components/TodayActivityCard";
-import { WaterWatchCard } from "@/components/WaterWatchCard";
 import { getCurrentUserTodayView } from "@/lib/growing/today";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +57,7 @@ export default async function TodayPage() {
         </section>
       ) : (
         <div className="grid gap-8">
-          {view.frostAssessment ? <FrostWatchCard assessment={view.frostAssessment} compact showNeutral={false} /> : null}
-          {view.waterAssessment ? <WaterWatchCard assessment={view.waterAssessment} compact showNeutral={false} /> : null}
-          {view.heatAssessment ? <HeatWatchCard assessment={view.heatAssessment} compact showNeutral={false} /> : null}
+          {view.signals.length ? <section className="grid gap-4">{view.signals.map((signal) => <SignalCard key={signal.id} signal={signal} />)}</section> : null}
 
           {view.today.length ? (
             <section className="grid gap-4">

@@ -322,18 +322,19 @@ test("loadTodayViewForUser gives heat guidance only server-authorized batches an
     }),
   });
 
-  assert.deepEqual(view.heatAssessment?.affectedPlants.map((plant) => plant.batchId), ["a"]);
-  assert.equal(view.heatAssessment?.affectedPlants[0].placementType, "greenhouse");
+  assert.deepEqual(view.signals[0]?.affectedBatches.map((plant) => plant.batchId), ["a"]);
+  assert.equal(view.signals[0]?.type, "heat");
 });
 
-test("Värmekoll UI is present on Vader and conditionally present on Idag", () => {
+test("Värmekoll UI is present on Vader and Idag uses the common signal card", () => {
   const weatherPage = readFileSync("src/app/vader/page.tsx", "utf8");
   const todayPage = readFileSync("src/app/idag/page.tsx", "utf8");
   const card = readFileSync("src/components/HeatWatchCard.tsx", "utf8");
   const heatData = readFileSync("src/data/plant-heat-profiles.ts", "utf8");
 
   assert.match(weatherPage, /HeatWatchCard/);
-  assert.match(todayPage, /showNeutral=\{false\}/);
+  assert.match(todayPage, /SignalCard/);
+  assert.doesNotMatch(todayPage, /HeatWatchCard/);
   assert.match(card, /Värmekoll/);
   assert.match(card, /odlingsstöd/);
   assert.doesNotMatch(card, /VÄRMEVARNING|SMHI|weather_code|vattna|liter/i);

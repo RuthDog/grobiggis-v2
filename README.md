@@ -198,3 +198,15 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Växthusets faktiska temperatur mäts inte och räknas inte om från uteprognosen. UI kan bara ge försiktig ventilation-copy när en värmesignal redan finns.
 - Kruka kan ge försiktig placeringscopy, men Bevattningskoll ansvarar fortsatt för jordfuktighet, nederbörd och ET0.
 - Version 3.5 skapar ingen heat history, inga heat events, ingen heat alert-tabell, ingen notifieringsmotor och ingen push.
+
+## Version 3.6 - Gemensamt signalsystem
+
+- Frostvakt, Bevattningskoll och Värmekoll förblir separata expertmotorer med egna assessment-modeller.
+- `GrobiggisSignal` är ett gemensamt produktkontrakt ovanpå assessmenterna för ytor som Idag, framtida Översikt och framtida notifieringslager.
+- Signaler är härledda vid request och sparas inte i D1. Version 3.6 skapar ingen signal-tabell, ingen notification-tabell och ingen signalhistorik.
+- `/idag` använder gemensamma signaler via `SignalCard`; `/vader` behåller Frostvakt, Bevattningskoll och Värmekoll som detaljkort.
+- Varje väderassessment kan ge högst en sammanfattad signal. `none` och `unavailable` ger ingen vanlig odlingssignal.
+- Signal-id är deterministiskt per typ och bedömningsfönster, exempelvis `weather:frost:<start>:<end>`, så framtida lager kan känna igen samma logiska signal utan att Version 3.6 behöver persistence.
+- `SignalLevel` är produktprioritet: `important`, `attention` och `info`. Det är inte samma sak som assessmenternas interna nivåer.
+- Alla vädersignaler länkar data-only till `/vader`; signalobjekt innehåller inga callbacks, sessioner, providerfält eller leveransstatus.
+- Signal är inte notification delivery. Framtida push kräver separata val för preferenser, kanal, permission/subscription, schemaläggning, deduplicerad skickstatus och läs/avfärda-hantering.

@@ -206,16 +206,17 @@ test("loadTodayViewForUser gives Frostvakt only server-authorized user batches",
   });
 
   assert.deepEqual(seenBatchIds, [["a"]]);
-  assert.deepEqual(view.frostAssessment?.affectedPlants.map((plant) => plant.batchId), ["a"]);
+  assert.deepEqual(view.signals[0]?.affectedBatches.map((plant) => plant.batchId), ["a"]);
 });
 
-test("Frostvakt UI is present on Vader and conditionally present on Idag", () => {
+test("Frostvakt UI is present on Vader and Idag uses the common signal card", () => {
   const weatherPage = readFileSync("src/app/vader/page.tsx", "utf8");
   const todayPage = readFileSync("src/app/idag/page.tsx", "utf8");
   const card = readFileSync("src/components/FrostWatchCard.tsx", "utf8");
 
   assert.match(weatherPage, /FrostWatchCard/);
-  assert.match(todayPage, /showNeutral=\{false\}/);
+  assert.match(todayPage, /SignalCard/);
+  assert.doesNotMatch(todayPage, /FrostWatchCard/);
   assert.match(card, /Frostvakt/);
   assert.match(card, /showNeutral/);
 });

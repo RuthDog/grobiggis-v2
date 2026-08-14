@@ -40,9 +40,9 @@ function localParts(now: Date, timeZone: string) {
 
 export function greetingForHour(hour: number) {
   if (hour >= 5 && hour < 10) return "God morgon";
-  if (hour >= 10 && hour < 12) return "God formiddag";
+  if (hour >= 10 && hour < 12) return "God förmiddag";
   if (hour >= 12 && hour < 17) return "God eftermiddag";
-  if (hour >= 17 && hour < 22) return "God kvall";
+  if (hour >= 17 && hour < 22) return "God kväll";
   return "Hej";
 }
 
@@ -56,7 +56,7 @@ export function localGreeting(now: Date, timeZone = DEFAULT_TIME_ZONE): LocalGre
   const dateText = `${local.weekday} ${Number(local.day)} ${new Intl.DateTimeFormat("sv-SE", { timeZone, month: "long" }).format(now)}`;
   return {
     heading: greetingForHour(local.hour),
-    support: "Har ar det som ar aktuellt i din odling.",
+    support: "Här är det som är aktuellt i din odling.",
     dateLabel: dateText[0]?.toLocaleUpperCase("sv-SE") + dateText.slice(1),
     dateISO: `${local.year}-${local.month}-${local.day}`,
     timeZone,
