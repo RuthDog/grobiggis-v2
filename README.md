@@ -210,3 +210,17 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - `SignalLevel` är produktprioritet: `important`, `attention` och `info`. Det är inte samma sak som assessmenternas interna nivåer.
 - Alla vädersignaler länkar data-only till `/vader`; signalobjekt innehåller inga callbacks, sessioner, providerfält eller leveransstatus.
 - Signal är inte notification delivery. Framtida push kräver separata val för preferenser, kanal, permission/subscription, schemaläggning, deduplicerad skickstatus och läs/avfärda-hantering.
+
+## Version 3.7 - Signalpolicy och notification foundation
+
+- Version 3.7 slutar vid `GrobiggisSignal[]` -> `NotificationPolicy` -> `NotificationCandidate[]`.
+- `NotificationPolicy` är ett rent, härlett policylager som tar redan byggda signaler och avgör om de kan bli notifieringskandidater utan att läsa eller skriva databas.
+- `NotificationCandidate` är data-only: `id`, `signalId`, `type`, `urgency`, `title`, `body`, `href`, `deduplicationKey`, `validFrom` och `validTo`.
+- Policyn är konservativ i 3.7: `info` undertrycks, Frostvakt `important` blir `high`, nära Frostvakt `attention` kan bli `normal`, och Bevattningskoll/Värmekoll blir kandidater endast vid `important`.
+- Tidsrelevans bedöms från signalernas `validFrom` och `validTo` med Europe/Stockholm-semantik. Frost `attention` måste ligga nära nog i tid för att bli kandidat.
+- Dedupliceringsnyckeln bygger på signalens deterministiska id och kandidatens policytillstånd. Om samma signal eskalerar från `attention` till `important` får den därför en ny deduplication key utan sent-history i 3.7.
+- Berörda växtetiketter dedupliceras endast i kandidaternas korta presentationstext. Underliggande `GrobiggisSignal.affectedBatches` är fortsatt fullständig och behåller alla `batchId`.
+- `/idag` använder fortsatt `GrobiggisSignal[]` direkt och börjar inte konsumera `NotificationCandidate[]` i 3.7.
+- `src/lib/notifications/server.ts` är en tunn serverintegration för framtida användning: verifierad användare och aktiva odlingar -> `getSignalsForUser` -> `buildNotificationCandidates`.
+- Version 3.7 bygger ingen Web Push, service worker, VAPID, notification permission, subscription persistence, user preferences, sent/dedup history, quiet hours, frequency caps, scheduler, queue, cron, delivery worker eller notifieringskanal.
+- Version 3.7 skapar ingen ny D1-tabell, ingen migration, ingen Cloudflare-resurs och ingen push-/notifieringsmotor. Framtida faktisk notification delivery kräver separat design för preferenser, kanal, behörighet/subscription, historik, deduplicering och frekvensregler.
