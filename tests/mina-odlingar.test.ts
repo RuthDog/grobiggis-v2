@@ -24,8 +24,8 @@ test("Mina odlingar is reachable from primary navigation", () => {
   const shell = read("src/components/AppShell.tsx");
 
   assert.match(shell, /href: "\/mina-odlingar"/);
-  assert.match(shell, /Mina odlingar/);
-  assert.match(shell, /flex flex-wrap gap-1\.5 sm:gap-2/);
+  assert.match(shell, /Odlingar/);
+  assert.match(shell, /mobilePrimaryNavigation/);
 });
 
 test("create space UI sends only name and type to the server action", () => {
