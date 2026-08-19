@@ -28,8 +28,11 @@ import {
   revokePushSubscriptionEndpointForUser,
   revokePushSubscriptionForUser,
   saveNotificationPreferencesForUser,
+  sendNotificationCandidateForUser,
   sendTestPushForUser,
 } from "../src/lib/notification-infrastructure/service.ts";
+import { selectDeliverableNotificationCandidate } from "../src/lib/notification-infrastructure/candidate-selection.ts";
+import { pushNotificationPayloadFromCandidate } from "../src/lib/push/payload.ts";
 import type { PushSender } from "../src/lib/push/sender.ts";
 import type {
   NotificationDeliveryRepository,
@@ -164,6 +167,13 @@ const candidate = (patch: Partial<NotificationCandidate> = {}): NotificationCand
   validTo: "2026-08-13T09:00",
   ...patch,
 });
+
+const deliverableCandidate = (patch: Partial<NotificationCandidate> = {}): NotificationCandidate =>
+  candidate({
+    validFrom: "2026-08-15",
+    validTo: "2026-08-16",
+    ...patch,
+  });
 
 test("notification infrastructure schema has the three user-scoped primitives", () => {
   assert.equal(notificationPreferences.userId.name, "user_id");
@@ -465,6 +475,323 @@ test("test push invalidates only 404 and 410 endpoints", async () => {
   assert.equal((await repository.getActiveByEndpointForUser(userA.id, failing.endpoint))?.id, failing.id);
 });
 
+test("candidate selection is deterministic and chooses high urgency before normal", () => {
+  const high = candidate({ id: "notification:high", urgency: "high", deduplicationKey: "weather:frost:high" });
+  const normal = candidate({
+    id: "notification:normal",
+    signalId: "weather:heat:normal",
+    type: "heat",
+    urgency: "normal",
+    deduplicationKey: "weather:heat:normal",
+    validFrom: "2026-08-12",
+    validTo: "2026-08-13",
+  });
+
+  const first = selectDeliverableNotificationCandidate({
+    candidates: [normal, high],
+    preferences: { frost: true, watering: true, heat: true },
+    deliveredKeys: new Set(),
+    now: new Date("2026-08-12T10:00:00Z"),
+  });
+  const second = selectDeliverableNotificationCandidate({
+    candidates: [high, normal],
+    preferences: { frost: true, watering: true, heat: true },
+    deliveredKeys: new Set(),
+    now: new Date("2026-08-12T10:00:00Z"),
+  });
+
+  assert.equal(first.status, "selected");
+  assert.equal(second.status, "selected");
+  if (first.status === "selected" && second.status === "selected") {
+    assert.equal(first.candidate.id, high.id);
+    assert.equal(second.candidate.id, high.id);
+  }
+});
+
+test("candidate selection filters preferences, delivered keys, expired candidates and unsafe hrefs", () => {
+  const disabledFrost = candidate({ id: "notification:disabled", deduplicationKey: "weather:frost:disabled" });
+  const deliveredHeat = candidate({
+    id: "notification:delivered",
+    signalId: "weather:heat:delivered",
+    type: "heat",
+    urgency: "normal",
+    deduplicationKey: "weather:heat:delivered",
+    validFrom: "2026-08-12",
+    validTo: "2026-08-13",
+  });
+  const expiredWatering = candidate({
+    id: "notification:expired",
+    signalId: "weather:watering:expired",
+    type: "watering",
+    urgency: "normal",
+    deduplicationKey: "weather:watering:expired",
+    validFrom: "2026-08-10",
+    validTo: "2026-08-10",
+  });
+  const unsafeHref = candidate({
+    id: "notification:unsafe",
+    signalId: "weather:heat:unsafe",
+    type: "heat",
+    urgency: "normal",
+    href: "https://evil.example",
+    deduplicationKey: "weather:heat:unsafe",
+    validFrom: "2026-08-12",
+    validTo: "2026-08-13",
+  });
+  const next = candidate({
+    id: "notification:next",
+    signalId: "weather:watering:next",
+    type: "watering",
+    urgency: "normal",
+    deduplicationKey: "weather:watering:next",
+    validFrom: "2026-08-12",
+    validTo: "2026-08-13",
+  });
+
+  const selected = selectDeliverableNotificationCandidate({
+    candidates: [disabledFrost, deliveredHeat, expiredWatering, unsafeHref, next],
+    preferences: { frost: false, watering: true, heat: true },
+    deliveredKeys: new Set([deliveredHeat.deduplicationKey]),
+    now: new Date("2026-08-12T10:00:00Z"),
+  });
+
+  assert.equal(selected.status, "selected");
+  if (selected.status === "selected") assert.equal(selected.candidate.id, next.id);
+
+  assert.deepEqual(
+    selectDeliverableNotificationCandidate({
+      candidates: [disabledFrost],
+      preferences: { frost: false, watering: false, heat: false },
+      deliveredKeys: new Set(),
+      now: new Date("2026-08-12T10:00:00Z"),
+    }),
+    { status: "preference_disabled" },
+  );
+  assert.deepEqual(
+    selectDeliverableNotificationCandidate({
+      candidates: [deliveredHeat],
+      preferences: { frost: false, watering: false, heat: true },
+      deliveredKeys: new Set([deliveredHeat.deduplicationKey]),
+      now: new Date("2026-08-12T10:00:00Z"),
+    }),
+    { status: "already_delivered" },
+  );
+  assert.deepEqual(
+    selectDeliverableNotificationCandidate({
+      candidates: [],
+      preferences: { frost: true, watering: true, heat: true },
+      deliveredKeys: new Set(),
+      now: new Date("2026-08-12T10:00:00Z"),
+    }),
+    { status: "none_available" },
+  );
+});
+
+test("candidate payload maps product notification data without secrets or SignalType confusion", () => {
+  const payload = pushNotificationPayloadFromCandidate(candidate());
+
+  assert.deepEqual(payload, {
+    version: 1,
+    type: "notification",
+    title: "Frost väntas i natt",
+    body: "Tomat kan behöva skyddas.",
+    href: "/vader",
+  });
+  assert.equal("endpoint" in payload, false);
+  assert.equal("p256dh" in payload, false);
+  assert.equal("auth" in payload, false);
+  assert.equal("signalType" in payload, false);
+});
+
+test("candidate delivery requires auth, current-device ownership, enabled preference and writes one delivery log after success", async () => {
+  const preferences = new MemoryNotificationPreferenceRepository();
+  const pushSubscriptions = new MemoryPushSubscriptionRepository();
+  const deliveries = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const subscription = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("candidate-device"), createId, new Date("2026-08-15T10:00:00Z"));
+  await addPushSubscriptionForUser(pushSubscriptions, userB, fakeSubscription("other-user-candidate"), createId, new Date("2026-08-15T10:01:00Z"));
+  await saveNotificationPreferencesForUser(preferences, userA, { frost: true, watering: true, heat: true }, createId, new Date("2026-08-15T10:02:00Z"));
+  const currentCandidate = deliverableCandidate();
+  const sent: string[] = [];
+  const sender: PushSender = async (target, payload) => {
+    sent.push(target.id);
+    assert.equal(payload.type, "notification");
+    assert.equal(payload.href, "/vader");
+    return { ok: true, status: "sent", statusCode: 201 };
+  };
+
+  await assert.rejects(
+    () =>
+      sendNotificationCandidateForUser(
+        { preferences, pushSubscriptions, deliveries },
+        null,
+        { endpoint: subscription.endpoint },
+        [currentCandidate],
+        sender,
+        { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" },
+        createId,
+        new Date("2026-08-15T10:03:00Z"),
+      ),
+    /Authentication required/,
+  );
+  await assert.rejects(
+    () =>
+      sendNotificationCandidateForUser(
+        { preferences, pushSubscriptions, deliveries },
+        userA,
+        { endpoint: subscription.endpoint, userId: "client-user" },
+        [currentCandidate],
+        sender,
+        { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" },
+        createId,
+        new Date("2026-08-15T10:03:00Z"),
+      ),
+    NotificationInfrastructureInputError,
+  );
+
+  const result = await sendNotificationCandidateForUser(
+    { preferences, pushSubscriptions, deliveries },
+    userA,
+    { endpoint: subscription.endpoint },
+    [currentCandidate],
+    sender,
+    { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" },
+    createId,
+    new Date("2026-08-15T10:04:00Z"),
+  );
+
+  assert.deepEqual(result, { status: "sent" });
+  assert.deepEqual(sent, [subscription.id]);
+  assert.equal(deliveries.rows.size, 1);
+  const [row] = [...deliveries.rows.values()];
+  assert.equal(row?.userId, userA.id);
+  assert.equal(row?.subscriptionId, subscription.id);
+  assert.equal(row?.signalType, "frost");
+  assert.equal(row?.urgency, "high");
+  assert.equal(row?.deduplicationKey, currentCandidate.deduplicationKey);
+  assert.equal(row?.deliveredAt, "2026-08-15T10:04:00.000Z");
+  assert.deepEqual(await getNotificationPreferencesForUser(preferences, userA), { frost: true, watering: true, heat: true });
+});
+
+test("candidate delivery suppresses disabled, missing-preference and delivered candidates without sending", async () => {
+  const preferences = new MemoryNotificationPreferenceRepository();
+  const pushSubscriptions = new MemoryPushSubscriptionRepository();
+  const deliveries = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const subscription = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("suppressed-device"), createId, new Date("2026-08-15T10:00:00Z"));
+  const currentCandidate = deliverableCandidate();
+  const sender: PushSender = async () => {
+    throw new Error("suppressed candidates must not send");
+  };
+  const vapid = { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" };
+
+  assert.deepEqual(
+    await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userA, { endpoint: subscription.endpoint }, [currentCandidate], sender, vapid, createId, new Date("2026-08-15T10:01:00Z")),
+    { status: "preference_disabled" },
+  );
+
+  await saveNotificationPreferencesForUser(preferences, userA, { frost: true, watering: false, heat: false }, createId, new Date("2026-08-15T10:02:00Z"));
+  await recordNotificationCandidateDeliveryForUser(deliveries, userA, currentCandidate, subscription.id, createId, new Date("2026-08-15T10:03:00Z"));
+
+  assert.deepEqual(
+    await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userA, { endpoint: subscription.endpoint }, [currentCandidate], sender, vapid, createId, new Date("2026-08-15T10:04:00Z")),
+    { status: "already_delivered" },
+  );
+  assert.equal(deliveries.rows.size, 1);
+});
+
+test("candidate delivery handles failed sends, invalid subscriptions and partial log failure safely", async () => {
+  const preferences = new MemoryNotificationPreferenceRepository();
+  const pushSubscriptions = new MemoryPushSubscriptionRepository();
+  const deliveries = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const gone = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("candidate-gone"), createId, new Date("2026-08-15T10:00:00Z"));
+  const failing = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("candidate-failing"), createId, new Date("2026-08-15T10:01:00Z"));
+  const partial = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("candidate-partial"), createId, new Date("2026-08-15T10:02:00Z"));
+  await saveNotificationPreferencesForUser(preferences, userA, { frost: true, watering: true, heat: true }, createId, new Date("2026-08-15T10:03:00Z"));
+  const vapid = { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" };
+  const currentCandidate = deliverableCandidate();
+
+  assert.deepEqual(
+    await sendNotificationCandidateForUser(
+      { preferences, pushSubscriptions, deliveries },
+      userA,
+      { endpoint: gone.endpoint },
+      [currentCandidate],
+      async () => ({ ok: false, status: "subscription_invalid", statusCode: 410 }),
+      vapid,
+      createId,
+      new Date("2026-08-15T10:04:00Z"),
+    ),
+    { status: "subscription_invalid" },
+  );
+  assert.equal(await pushSubscriptions.getActiveByEndpointForUser(userA.id, gone.endpoint), null);
+  assert.equal(deliveries.rows.size, 0);
+
+  assert.deepEqual(
+    await sendNotificationCandidateForUser(
+      { preferences, pushSubscriptions, deliveries },
+      userA,
+      { endpoint: failing.endpoint },
+      [currentCandidate],
+      async () => ({ ok: false, status: "failed", statusCode: 500 }),
+      vapid,
+      createId,
+      new Date("2026-08-15T10:05:00Z"),
+    ),
+    { status: "failed" },
+  );
+  assert.equal((await pushSubscriptions.getActiveByEndpointForUser(userA.id, failing.endpoint))?.id, failing.id);
+  assert.equal(deliveries.rows.size, 0);
+
+  const partialDeliveries = new (class extends MemoryNotificationDeliveryRepository {
+    override async recordDeliveredForUser(): Promise<NotificationDeliveryLogEntry> {
+      throw new Error("D1 unavailable");
+    }
+  })();
+  assert.deepEqual(
+    await sendNotificationCandidateForUser(
+      { preferences, pushSubscriptions, deliveries: partialDeliveries },
+      userA,
+      { endpoint: partial.endpoint },
+      [currentCandidate],
+      async () => ({ ok: true, status: "sent", statusCode: 201 }),
+      vapid,
+      createId,
+      new Date("2026-08-15T10:06:00Z"),
+    ),
+    { status: "partial_success" },
+  );
+  assert.equal(partialDeliveries.rows.size, 0);
+});
+
+test("candidate delivery dedup is user-scoped and allows escalation with a different key", async () => {
+  const preferences = new MemoryNotificationPreferenceRepository();
+  const pushSubscriptions = new MemoryPushSubscriptionRepository();
+  const deliveries = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const subscriptionA = await addPushSubscriptionForUser(pushSubscriptions, userA, fakeSubscription("dedup-a"), createId, new Date("2026-08-15T10:00:00Z"));
+  const subscriptionB = await addPushSubscriptionForUser(pushSubscriptions, userB, fakeSubscription("dedup-b"), createId, new Date("2026-08-15T10:01:00Z"));
+  await saveNotificationPreferencesForUser(preferences, userA, { frost: true, watering: true, heat: true }, createId, new Date("2026-08-15T10:02:00Z"));
+  await saveNotificationPreferencesForUser(preferences, userB, { frost: true, watering: true, heat: true }, createId, new Date("2026-08-15T10:03:00Z"));
+  const vapid = { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" };
+  const sent: string[] = [];
+  const sender: PushSender = async (subscription) => {
+    sent.push(subscription.id);
+    return { ok: true, status: "sent", statusCode: 201 };
+  };
+  const currentCandidate = deliverableCandidate();
+
+  assert.deepEqual(await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userA, { endpoint: subscriptionA.endpoint }, [currentCandidate], sender, vapid, createId, new Date("2026-08-15T10:04:00Z")), { status: "sent" });
+  assert.deepEqual(await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userA, { endpoint: subscriptionA.endpoint }, [currentCandidate], sender, vapid, createId, new Date("2026-08-15T10:05:00Z")), { status: "already_delivered" });
+  assert.deepEqual(await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userB, { endpoint: subscriptionB.endpoint }, [currentCandidate], sender, vapid, createId, new Date("2026-08-15T10:06:00Z")), { status: "sent" });
+
+  const escalated = deliverableCandidate({ id: "notification:escalated", urgency: "high", deduplicationKey: `${currentCandidate.deduplicationKey}:escalated` });
+  assert.deepEqual(await sendNotificationCandidateForUser({ preferences, pushSubscriptions, deliveries }, userA, { endpoint: subscriptionA.endpoint }, [currentCandidate, escalated], sender, vapid, createId, new Date("2026-08-15T10:07:00Z")), { status: "sent" });
+  assert.deepEqual(sent, [subscriptionA.id, subscriptionB.id, subscriptionA.id]);
+  assert.equal(deliveries.rows.size, 3);
+});
+
 test("cross-account endpoint conflicts stay opaque and cannot be silently reassigned", async () => {
   const repository = new MemoryPushSubscriptionRepository();
   const createId = ids();
@@ -541,7 +868,9 @@ test("ordinary pages and signal evaluation do not write delivery state or build 
   assert.match(serviceWorker, /clients\.claim/);
   assert.match(serviceWorker, /showNotification/);
   assert.match(serviceWorker, /notificationclick/);
-  assert.doesNotMatch(`${pushSender}\n${pushPayload}\n${serviceWorker}`, /NotificationCandidate|buildNotificationCandidates|buildWeatherSignals|FrostAssessment|WaterAssessment|HeatAssessment/i);
+  assert.match(pushPayload, /pushNotificationPayloadFromCandidate/);
+  assert.doesNotMatch(`${pushSender}\n${serviceWorker}`, /NotificationCandidate|buildNotificationCandidates|buildWeatherSignals|FrostAssessment|WaterAssessment|HeatAssessment/i);
+  assert.doesNotMatch(pushPayload, /buildNotificationCandidates|buildWeatherSignals|FrostAssessment|WaterAssessment|HeatAssessment/i);
   assert.doesNotMatch(serviceWorker, /caches\.|addEventListener\(["']fetch["']/i);
   assert.doesNotMatch(`${pushSender}\n${pushPayload}`, /notification_delivery_log|recordNotificationDelivery|recordDeliveredForUser/i);
 });
@@ -571,6 +900,8 @@ test("profile UI copy is honest about future push notifications", () => {
   assert.match(pushCard, /onClick=\{deactivate\}[\s\S]*type="button"/);
   assert.match(pushCard, /Skicka testnotis/);
   assert.match(pushCard, /sendTestPushAction/);
+  assert.match(pushCard, /Skicka aktuell notis/);
+  assert.match(pushCard, /sendNotificationCandidateAction/);
   assert.match(actions, /revalidatePath\("\/profil"\)/);
   assert.doesNotMatch(`${page}\n${form}\n${actions}`, /Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
   assert.doesNotMatch(combined, /createVapidJwt|encryptPayload|delivery_log/i);

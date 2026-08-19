@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   registerPushSubscriptionAction,
   revokePushSubscriptionAction,
+  sendNotificationCandidateAction,
   sendTestPushAction,
   syncPushSubscriptionAction,
 } from "@/lib/notification-infrastructure/actions";
+import type { NotificationCandidatePreview } from "@/lib/notification-infrastructure/candidate-delivery-types";
 import {
   activatePushOnCurrentDevice,
   browserPushEnvironmentFromGlobals,
@@ -45,7 +48,14 @@ function DeviceStatusMessage({ state }: Readonly<{ state: PushDeviceState }>) {
   return null;
 }
 
-export function PushNotificationsCard({ vapidPublicKey }: Readonly<{ vapidPublicKey: string | null }>) {
+export function PushNotificationsCard({
+  candidateDelivery,
+  vapidPublicKey,
+}: Readonly<{
+  candidateDelivery: NotificationCandidatePreview | null;
+  vapidPublicKey: string | null;
+}>) {
+  const router = useRouter();
   const [deviceState, setDeviceState] = useState<PushDeviceState>({
     kind: "inactive",
     permission: "default",
@@ -146,10 +156,25 @@ export function PushNotificationsCard({ vapidPublicKey }: Readonly<{ vapidPublic
     });
   };
 
+  const sendNotificationCandidate = () => {
+    if (deviceState.kind !== "active" || candidateDelivery?.status !== "available") return;
+    setMessage("");
+
+    startTransition(async () => {
+      const result = await sendNotificationCandidateAction({ endpoint: deviceState.endpoint });
+      setMessage(result.message);
+      if (result.status === "subscription_invalid") {
+        await refreshDeviceState();
+      }
+      router.refresh();
+    });
+  };
+
   const homeScreenHint = pushHomeScreenHint(deviceState.showHomeScreenHint);
   const showActivate = deviceState.kind === "inactive" || deviceState.kind === "sync_required";
   const showDeactivate = deviceState.kind === "active" || deviceState.kind === "sync_required" || Boolean(lastKnownEndpoint);
   const showTestPush = deviceState.kind === "active";
+  const showNotificationCandidate = deviceState.kind === "active" && candidateDelivery;
 
   return (
     <section className="grid gap-5 rounded-[2rem] border border-[color:var(--line)] bg-white/80 p-5 shadow-[0_18px_46px_rgba(28,67,53,0.08)] sm:p-6">
@@ -162,6 +187,38 @@ export function PushNotificationsCard({ vapidPublicKey }: Readonly<{ vapidPublic
       </div>
 
       <DeviceStatusMessage state={deviceState} />
+
+      {showNotificationCandidate ? (
+        <div className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-white px-4 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--forest)]">Testa aktuell Grobiggis-notis</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              Skicka den högst prioriterade aktuella odlingsnotisen till den här enheten.
+            </p>
+          </div>
+          {candidateDelivery.status === "available" ? (
+            <>
+              <p className="text-sm font-semibold text-[var(--forest)]">{candidateDelivery.candidate.title}</p>
+              <button
+                className="min-h-11 rounded-full border border-[color:var(--line)] bg-white px-5 text-sm font-bold text-[var(--forest)] shadow-[0_10px_22px_rgba(28,67,53,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isPending}
+                onClick={sendNotificationCandidate}
+                type="button"
+              >
+                {isPending ? "Skickar..." : "Skicka aktuell notis"}
+              </button>
+            </>
+          ) : (
+            <p className="rounded-2xl bg-[var(--sage-light)] px-4 py-3 text-sm font-semibold text-[var(--forest)]">
+              {candidateDelivery.status === "preference_disabled"
+                ? "Aktuella notiser är avstängda i dina notisval."
+                : candidateDelivery.status === "already_delivered"
+                  ? "Den aktuella notisen har redan skickats."
+                  : "Ingen aktuell odlingsnotis finns att skicka just nu."}
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {showTestPush ? (
         <div className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-white px-4 py-4">

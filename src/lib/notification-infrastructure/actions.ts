@@ -10,9 +10,11 @@ import {
   ensureCurrentUserPushSubscriptionActive,
   registerCurrentUserPushSubscription,
   revokeCurrentUserPushSubscription,
+  sendCurrentUserNotificationCandidate,
   sendCurrentUserTestPush,
   saveCurrentUserNotificationPreferences,
 } from "./server";
+import type { SendNotificationCandidateResult } from "./candidate-delivery-types";
 
 export type NotificationPreferencesActionResult =
   | { ok: true; preferences: NotificationPreferenceSettings }
@@ -33,6 +35,10 @@ export type RevokePushSubscriptionActionResult =
 export type SendTestPushActionResult =
   | { ok: true; status: "sent"; message: string }
   | { ok: false; status: "subscription_invalid" | "failed"; message: string };
+
+export type SendNotificationCandidateActionResult =
+  | { ok: true; status: "sent"; message: string }
+  | { ok: false; status: Exclude<SendNotificationCandidateResult["status"], "sent">; message: string };
 
 function messageForError(error: unknown, fallback: string) {
   if (error instanceof NotificationInfrastructureInputError) return error.message;
@@ -116,5 +122,27 @@ export async function sendTestPushAction(input: unknown): Promise<SendTestPushAc
     return { ok: false, status: "failed", message: "Testnotisen kunde inte skickas. Försök igen." };
   } catch {
     return { ok: false, status: "failed", message: "Testnotisen kunde inte skickas. Försök igen." };
+  }
+}
+
+function messageForCandidateDeliveryStatus(status: SendNotificationCandidateResult["status"]) {
+  if (status === "sent") return "Notisen skickades.";
+  if (status === "none_available") return "Ingen aktuell odlingsnotis finns att skicka just nu.";
+  if (status === "preference_disabled") return "Aktuella notiser är avstängda i dina notisval.";
+  if (status === "already_delivered") return "Den aktuella notisen har redan skickats.";
+  if (status === "subscription_invalid") return "Pushnotiser behöver aktiveras på nytt på den här enheten.";
+  if (status === "partial_success") return "Notisen skickades, men leveransen kunde inte registreras korrekt. Försök inte skicka igen direkt.";
+  return "Notisen kunde inte skickas. Försök igen.";
+}
+
+export async function sendNotificationCandidateAction(input: unknown): Promise<SendNotificationCandidateActionResult> {
+  try {
+    const result = await sendCurrentUserNotificationCandidate(input);
+    revalidatePath("/profil");
+    const message = messageForCandidateDeliveryStatus(result.status);
+    if (result.status === "sent") return { ok: true, status: "sent", message };
+    return { ok: false, status: result.status, message };
+  } catch {
+    return { ok: false, status: "failed", message: messageForCandidateDeliveryStatus("failed") };
   }
 }

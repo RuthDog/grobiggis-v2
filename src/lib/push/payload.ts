@@ -1,4 +1,6 @@
-export type PushNotificationPayload = {
+import type { NotificationCandidate } from "@/domain/notification-policy";
+
+export type TestPushNotificationPayload = {
   version: 1;
   type: "test";
   title: string;
@@ -6,7 +8,17 @@ export type PushNotificationPayload = {
   href: string;
 };
 
-export const testPushNotificationPayload: PushNotificationPayload = {
+export type CandidatePushNotificationPayload = {
+  version: 1;
+  type: "notification";
+  title: string;
+  body: string;
+  href: string;
+};
+
+export type PushNotificationPayload = TestPushNotificationPayload | CandidatePushNotificationPayload;
+
+export const testPushNotificationPayload: TestPushNotificationPayload = {
   version: 1,
   type: "test",
   title: "Grobiggis",
@@ -22,17 +34,27 @@ export function safePushHref(value: unknown, fallback = "/") {
   return trimmed;
 }
 
+export function pushNotificationPayloadFromCandidate(candidate: NotificationCandidate): CandidatePushNotificationPayload {
+  return {
+    version: 1,
+    type: "notification",
+    title: candidate.title,
+    body: candidate.body,
+    href: safePushHref(candidate.href, "/"),
+  };
+}
+
 export function validatePushNotificationPayload(value: unknown): PushNotificationPayload | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const input = value as Record<string, unknown>;
-  if (input.version !== 1 || input.type !== "test") return null;
+  if (input.version !== 1 || (input.type !== "test" && input.type !== "notification")) return null;
   if (typeof input.title !== "string" || typeof input.body !== "string") return null;
   const title = input.title.trim();
   const body = input.body.trim();
   if (!title || !body) return null;
   return {
     version: 1,
-    type: "test",
+    type: input.type,
     title,
     body,
     href: safePushHref(input.href, "/"),

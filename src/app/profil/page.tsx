@@ -3,7 +3,7 @@ import { NotificationPreferencesForm } from "@/components/NotificationPreference
 import { PushNotificationsCard } from "@/components/PushNotificationsCard";
 import { UserProfileForm } from "@/components/UserProfileForm";
 import { getCurrentUser } from "@/lib/auth/server";
-import { getCurrentUserNotificationPreferences } from "@/lib/notification-infrastructure/server";
+import { getCurrentUserNotificationCandidateDeliveryState, getCurrentUserNotificationPreferences } from "@/lib/notification-infrastructure/server";
 import { getPushRuntimeConfigForRequest } from "@/lib/push/server";
 import { getCurrentUserProfile } from "@/lib/user-profile/server";
 
@@ -34,6 +34,7 @@ export default async function ProfilePage() {
 
   const profile = await getCurrentUserProfile();
   const notificationPreferences = await getCurrentUserNotificationPreferences();
+  const candidateDelivery = await getCurrentUserNotificationCandidateDeliveryState();
   const pushConfig = await getPushRuntimeConfigForRequest();
 
   return (
@@ -49,7 +50,7 @@ export default async function ProfilePage() {
       <div className="grid gap-5">
         <UserProfileForm firstName={profile?.firstName} latitude={profile?.latitude} locality={profile?.locality} longitude={profile?.longitude} />
         {notificationPreferences ? <NotificationPreferencesForm preferences={notificationPreferences} /> : null}
-        <PushNotificationsCard vapidPublicKey={pushConfig.vapidPublicKey} />
+        <PushNotificationsCard candidateDelivery={candidateDelivery} vapidPublicKey={pushConfig.vapidPublicKey} />
       </div>
     </main>
   );

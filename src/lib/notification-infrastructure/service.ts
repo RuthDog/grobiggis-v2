@@ -12,8 +12,10 @@ import {
   type NotificationPreferenceSettings,
 } from "../../domain/notification-infrastructure.ts";
 import type { NotificationCandidate } from "../../domain/notification-policy.ts";
-import { testPushNotificationPayload } from "../push/payload.ts";
+import { pushNotificationPayloadFromCandidate, testPushNotificationPayload } from "../push/payload.ts";
 import type { PushSender } from "../push/sender.ts";
+import { selectDeliverableNotificationCandidate } from "./candidate-selection.ts";
+import type { NotificationCandidatePreview } from "./candidate-delivery-types.ts";
 import type {
   NotificationDeliveryRepository,
   NotificationPreferenceRepository,
@@ -158,6 +160,84 @@ export async function sendTestPushForUser(
   }
 
   return { status: "failed" as const };
+}
+
+export async function getDeliverableNotificationCandidateForUser(
+  preferenceRepository: NotificationPreferenceRepository,
+  deliveryRepository: NotificationDeliveryRepository,
+  user: { id: string } | null | undefined,
+  candidates: NotificationCandidate[],
+  now: Date = new Date(),
+): Promise<NotificationCandidatePreview> {
+  const userId = assertNotificationUser(user);
+  const preferences = notificationPreferencesToSettings(await preferenceRepository.listForUser(userId));
+  const deliveredKeys = new Set<string>();
+
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      if (await deliveryRepository.hasDeliveredForUser(userId, candidate.deduplicationKey)) {
+        deliveredKeys.add(candidate.deduplicationKey);
+      }
+    }),
+  );
+
+  const selection = selectDeliverableNotificationCandidate({ candidates, preferences, deliveredKeys, now });
+  if (selection.status !== "selected") return selection;
+
+  const { type, urgency, title, body, href } = selection.candidate;
+  return { status: "available", candidate: { type, urgency, title, body, href } };
+}
+
+export async function sendNotificationCandidateForUser(
+  repositories: {
+    preferences: NotificationPreferenceRepository;
+    pushSubscriptions: PushSubscriptionRepository;
+    deliveries: NotificationDeliveryRepository;
+  },
+  user: { id: string } | null | undefined,
+  input: unknown,
+  candidates: NotificationCandidate[],
+  sendPush: PushSender,
+  vapid: { subject: string; publicKey: string; privateKey: string },
+  createId: () => string = () => crypto.randomUUID(),
+  now: Date = new Date(),
+) {
+  const userId = assertNotificationUser(user);
+  const { endpoint } = validateRevokePushSubscriptionInput(input);
+  const subscription = await repositories.pushSubscriptions.getActiveByEndpointForUser(userId, endpoint);
+  if (!subscription) return { status: "subscription_invalid" as const };
+
+  const preferences = notificationPreferencesToSettings(await repositories.preferences.listForUser(userId));
+  const deliveredKeys = new Set<string>();
+
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      if (await repositories.deliveries.hasDeliveredForUser(userId, candidate.deduplicationKey)) {
+        deliveredKeys.add(candidate.deduplicationKey);
+      }
+    }),
+  );
+
+  const selection = selectDeliverableNotificationCandidate({ candidates, preferences, deliveredKeys, now });
+  if (selection.status !== "selected") return selection;
+
+  const candidate = selection.candidate;
+  const result = await sendPush(subscription, pushNotificationPayloadFromCandidate(candidate), vapid);
+  if (!result.ok) {
+    if (result.status === "subscription_invalid") {
+      await repositories.pushSubscriptions.revokeByEndpointForUser(userId, endpoint, now.toISOString());
+      return { status: "subscription_invalid" as const };
+    }
+
+    return { status: "failed" as const };
+  }
+
+  try {
+    await recordNotificationCandidateDeliveryForUser(repositories.deliveries, user, candidate, subscription.id, createId, now);
+    return { status: "sent" as const };
+  } catch {
+    return { status: "partial_success" as const };
+  }
 }
 
 export async function hasNotificationDeliveryForUser(

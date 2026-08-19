@@ -19,7 +19,7 @@ function notificationPayloadFromPush(event) {
 
   try {
     const payload = event.data.json();
-    if (!payload || payload.version !== 1 || payload.type !== "test") return null;
+    if (!payload || payload.version !== 1 || (payload.type !== "test" && payload.type !== "notification")) return null;
     if (typeof payload.title !== "string" || typeof payload.body !== "string") return null;
     const title = payload.title.trim();
     const body = payload.body.trim();
@@ -31,7 +31,7 @@ function notificationPayloadFromPush(event) {
         data: {
           href: safePushHref(payload.href),
         },
-        tag: "grobiggis-test",
+        tag: payload.type === "test" ? "grobiggis-test" : "grobiggis-notification",
       },
     };
   } catch {

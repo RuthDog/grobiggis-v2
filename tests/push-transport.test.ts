@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import {
   pushPayloadContainsSecretLikeFields,
+  pushNotificationPayloadFromCandidate,
   safePushHref,
   testPushNotificationPayload,
   validatePushNotificationPayload,
 } from "../src/lib/push/payload.ts";
+import type { NotificationCandidate } from "../src/domain/notification-policy.ts";
 
 function loadServiceWorker() {
   type ServiceWorkerTestEvent = {
@@ -81,6 +83,33 @@ test("test push payload validation keeps href relative and safe", () => {
   assert.equal(validatePushNotificationPayload({ ...testPushNotificationPayload, type: "frost" }), null);
 });
 
+test("notification candidate payload is separate from SignalType and keeps safe href", () => {
+  const candidate: NotificationCandidate = {
+    id: "notification:weather:frost:2026-08-12T18:00:high",
+    signalId: "weather:frost:2026-08-12T18:00",
+    type: "frost",
+    urgency: "high",
+    title: "Frost väntas i natt",
+    body: "Tomat kan behöva skyddas.",
+    href: "/vader",
+    deduplicationKey: "weather:frost:2026-08-12T18:00:important:high",
+    validFrom: "2026-08-12T18:00",
+    validTo: "2026-08-13T09:00",
+  };
+  const payload = pushNotificationPayloadFromCandidate(candidate);
+
+  assert.deepEqual(payload, {
+    version: 1,
+    type: "notification",
+    title: "Frost väntas i natt",
+    body: "Tomat kan behöva skyddas.",
+    href: "/vader",
+  });
+  assert.deepEqual(validatePushNotificationPayload(payload), payload);
+  assert.equal("signalType" in payload, false);
+  assert.equal(pushPayloadContainsSecretLikeFields(payload), false);
+});
+
 test("service worker push event shows the test notification", async () => {
   const worker = loadServiceWorker();
   let pending: Promise<unknown> | undefined;
@@ -99,6 +128,33 @@ test("service worker push event shows the test notification", async () => {
   assert.equal(worker.shownNotifications[0]?.title, "Grobiggis");
   assert.equal(worker.shownNotifications[0]?.options.body, "Pushnotiser fungerar på den här enheten.");
   assert.equal((worker.shownNotifications[0]?.options.data as { href?: string } | undefined)?.href, "/idag");
+});
+
+test("service worker push event shows a notification candidate payload", async () => {
+  const worker = loadServiceWorker();
+  let pending: Promise<unknown> | undefined;
+
+  worker.listeners.get("push")?.({
+    data: {
+      json: () => ({
+        version: 1,
+        type: "notification",
+        title: "Frost väntas i natt",
+        body: "Tomat kan behöva skyddas.",
+        href: "/vader",
+      }),
+    },
+    waitUntil(promise: Promise<unknown>) {
+      pending = promise;
+    },
+  });
+
+  await pending;
+  assert.equal(worker.shownNotifications.length, 1);
+  assert.equal(worker.shownNotifications[0]?.title, "Frost väntas i natt");
+  assert.equal(worker.shownNotifications[0]?.options.body, "Tomat kan behöva skyddas.");
+  assert.equal((worker.shownNotifications[0]?.options.data as { href?: string } | undefined)?.href, "/vader");
+  assert.equal(worker.shownNotifications[0]?.options.tag, "grobiggis-notification");
 });
 
 test("service worker ignores malformed push payloads without crashing", () => {

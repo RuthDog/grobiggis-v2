@@ -269,3 +269,15 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Service workern hanterar `push` genom att validera testpayloaden och visa en användarsynlig notification. `notificationclick` accepterar bara relativa same-origin paths och faller tillbaka till `/`.
 - `notification_delivery_log` ska förbli tom även efter en lyckad 3.10-testpush. Detta är korrekt beteende eftersom delivery-loggen börjar användas först i Version 3.11, när en riktig `NotificationCandidate` med `frost | watering | heat` levereras.
 - Version 3.10 bygger ingen signalutvärdering, ingen kandidatleverans, ingen Cron, ingen Queue och ingen background evaluator.
+
+## Version 3.11 - Riktig NotificationCandidate-delivery
+
+- Version 3.11 skickar för första gången en verklig `NotificationCandidate`, men bara via explicit användarklick på `/profil`. Ingen sida skickar notiser vid laddning och ingen automatisk schemaläggning finns.
+- Candidate selection är deterministisk: befintlig policy sorterar högst urgency först, därefter tid och deduplication key. 3.11 väljer första candidate som har enabled preference, inte är expired, har säker relativ `href` och saknar tidigare delivery-logg för samma user/deduplication key.
+- `Skicka aktuell notis` skickar bara till den aktuella aktiva browser-subscriptionen. Endpoint används endast server-side som opaque current-device identifier, och servern kräver att subscriptionen ägs av aktuell Better Auth-user.
+- Payloaden är `version: 1`, `type: "notification"`, `title`, `body` och `href`. `notification` är ett Web Push-transportvärde och är inte en `SignalType`.
+- `notification_delivery_log` skrivs först efter successful Web Push-send. Raden använder current user, current subscription, candidate id, signal id, deduplication key, faktisk `frost | watering | heat` signal type och candidate urgency.
+- 404/410 från push service soft-revokar current device subscription och skriver ingen delivery-logg. Andra send-fel skriver ingen logg och revokar inte automatiskt.
+- Om push-send lyckas men delivery-loggningen fallerar returnerar appen ett explicit partial-success-läge och ber användaren att inte skicka igen direkt. Det finns ingen distributed transaction mellan push provider och D1 i 3.11.
+- User-level dedup betyder att 3.12 behöver besluta multi-device-semantik innan automatisk delivery skickar till flera devices. 3.11 ändrar inte schema.
+- Version 3.11 bygger ingen Cron, ingen Queue, ingen background evaluator, ingen retry state machine och ingen fake weather override.

@@ -179,6 +179,13 @@ function candidateSortTime(candidate: NotificationCandidate) {
   return parseSignalTime(candidate.validFrom, "start") ?? Number.MAX_SAFE_INTEGER;
 }
 
+export function hasNotificationCandidateExpired(candidate: NotificationCandidate, now = new Date()) {
+  if (!candidate.validTo) return false;
+  const validTo = parseSignalTime(candidate.validTo, "end");
+  if (validTo === null) return false;
+  return validTo < nowLocalMinuteSerial(now);
+}
+
 export function sortNotificationCandidates(candidates: NotificationCandidate[]) {
   return [...candidates].sort((left, right) => {
     const urgencyDiff = urgencyOrder[left.urgency] - urgencyOrder[right.urgency];
