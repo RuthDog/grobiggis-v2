@@ -181,7 +181,9 @@ test("notification policy stays separated from UI signals, assessments, provider
   assert.doesNotMatch(source, /serviceWorker|PushManager|Notification\.requestPermission|VAPID|Queue|Cron|scheduled|send|INSERT|UPDATE|DELETE|db\./i);
   assert.match(serviceWorker, /skipWaiting/);
   assert.match(serviceWorker, /clients\.claim/);
-  assert.doesNotMatch(serviceWorker, /showNotification|notificationclick|caches\.|fetch\(|PushManager|VAPID/i);
+  assert.match(serviceWorker, /showNotification/);
+  assert.match(serviceWorker, /notificationclick/);
+  assert.doesNotMatch(serviceWorker, /NotificationCandidate|buildNotificationCandidates|frost|watering|heat|caches\.|fetch\(|PushManager|VAPID/i);
 
   for (const file of sourceFiles("public")) {
     if (file.endsWith("sw.js")) continue;

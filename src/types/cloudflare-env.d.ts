@@ -8,6 +8,7 @@ declare global {
     AUTH_EMAIL_FROM?: string;
     VAPID_PUBLIC_KEY?: string;
     VAPID_PRIVATE_KEY?: string;
+    VAPID_SUBJECT?: string;
   }
 }
 

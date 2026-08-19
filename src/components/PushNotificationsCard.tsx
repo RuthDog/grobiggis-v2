@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { registerPushSubscriptionAction, revokePushSubscriptionAction, syncPushSubscriptionAction } from "@/lib/notification-infrastructure/actions";
+import {
+  registerPushSubscriptionAction,
+  revokePushSubscriptionAction,
+  sendTestPushAction,
+  syncPushSubscriptionAction,
+} from "@/lib/notification-infrastructure/actions";
 import {
   activatePushOnCurrentDevice,
   browserPushEnvironmentFromGlobals,
@@ -128,9 +133,23 @@ export function PushNotificationsCard({ vapidPublicKey }: Readonly<{ vapidPublic
     });
   };
 
+  const sendTestPush = () => {
+    if (deviceState.kind !== "active") return;
+    setMessage("");
+
+    startTransition(async () => {
+      const result = await sendTestPushAction({ endpoint: deviceState.endpoint });
+      setMessage(result.message);
+      if (result.status === "subscription_invalid") {
+        await refreshDeviceState();
+      }
+    });
+  };
+
   const homeScreenHint = pushHomeScreenHint(deviceState.showHomeScreenHint);
   const showActivate = deviceState.kind === "inactive" || deviceState.kind === "sync_required";
   const showDeactivate = deviceState.kind === "active" || deviceState.kind === "sync_required" || Boolean(lastKnownEndpoint);
+  const showTestPush = deviceState.kind === "active";
 
   return (
     <section className="grid gap-5 rounded-[2rem] border border-[color:var(--line)] bg-white/80 p-5 shadow-[0_18px_46px_rgba(28,67,53,0.08)] sm:p-6">
@@ -143,6 +162,25 @@ export function PushNotificationsCard({ vapidPublicKey }: Readonly<{ vapidPublic
       </div>
 
       <DeviceStatusMessage state={deviceState} />
+
+      {showTestPush ? (
+        <div className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-white px-4 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--forest)]">Testa pushnotiser</h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              Skicka en testnotis till den här enheten för att kontrollera att allt fungerar.
+            </p>
+          </div>
+          <button
+            className="min-h-11 rounded-full border border-[color:var(--line)] bg-white px-5 text-sm font-bold text-[var(--forest)] shadow-[0_10px_22px_rgba(28,67,53,0.08)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isPending}
+            onClick={sendTestPush}
+            type="button"
+          >
+            {isPending ? "Skickar..." : "Skicka testnotis"}
+          </button>
+        </div>
+      ) : null}
 
       {homeScreenHint ? <p className="text-sm leading-6 text-[var(--muted)]">{homeScreenHint}</p> : null}
       {message ? <p className="rounded-2xl bg-[var(--sage-light)] px-4 py-3 text-sm font-semibold text-[var(--forest)]">{message}</p> : null}

@@ -256,3 +256,16 @@ Migration `0002_*` ar avsedd som lokal grund tills remote migration godkanns sep
 - Version 3.9 bygger ingen delivery-motor, ingen `sendWebPush(...)`, ingen VAPID-signering, ingen Cron, ingen Queue och ingen background evaluation.
 - `notification_delivery_log` ska därför fortfarande förbli tomt i normal användning efter 3.9.
 - Production behöver ett stabilt VAPID key pair där `VAPID_PUBLIC_KEY` får användas av browsern som `applicationServerKey`, medan `VAPID_PRIVATE_KEY` måste hållas hemlig och aldrig får committas.
+
+## Version 3.10 - Kontrollerad test-push
+
+- Version 3.10 är ett rent Web Push-transporttest. Testpushen är inte en `GrobiggisSignal`, inte en `NotificationCandidate` och inte en `SignalType`.
+- `/profil` visar `Skicka testnotis` bara när den aktuella browsern har en aktiv och synkad subscription. Knappen kräver ett explicit användarklick och skickar bara till den här enheten.
+- Testpayloaden är minimal och separat från odlingssignaler: `version: 1`, `type: "test"`, `title: "Grobiggis"`, `body: "Pushnotiser fungerar på den här enheten."` och `href: "/idag"`.
+- Servern använder verifierad Better Auth-session som authority. Klienten får skicka endpoint endast som opaque current-device identifier; servern verifierar ownership och `revoked_at IS NULL` innan någon send.
+- Web Push-send använder Workers-kompatibel Web Crypto via `@block65/webcrypto-web-push`, befintliga `VAPID_PUBLIC_KEY` och `VAPID_PRIVATE_KEY`, samt separat `VAPID_SUBJECT`.
+- `VAPID_PRIVATE_KEY`, subscription endpoint, `p256dh` och `auth` skickas aldrig till browsern och ingår inte i UI-resultat.
+- 404/410 från push service soft-revokar bara den aktuella subscriptionen och visar en sanerad återaktiveringscopy. Andra fel revokar inte automatiskt.
+- Service workern hanterar `push` genom att validera testpayloaden och visa en användarsynlig notification. `notificationclick` accepterar bara relativa same-origin paths och faller tillbaka till `/`.
+- `notification_delivery_log` ska förbli tom även efter en lyckad 3.10-testpush. Detta är korrekt beteende eftersom delivery-loggen börjar användas först i Version 3.11, när en riktig `NotificationCandidate` med `frost | watering | heat` levereras.
+- Version 3.10 bygger ingen signalutvärdering, ingen kandidatleverans, ingen Cron, ingen Queue och ingen background evaluator.

@@ -23,6 +23,7 @@ export interface NotificationPreferenceRepository {
 export interface PushSubscriptionRepository {
   addOrRefreshForUser(userId: string, subscription: PushSubscription): Promise<PushSubscription>;
   endpointStatusForUser(userId: string, endpoint: string): Promise<PushSubscriptionEndpointStatus>;
+  getActiveByEndpointForUser(userId: string, endpoint: string): Promise<PushSubscription | null>;
   listActiveForUser(userId: string): Promise<PushSubscription[]>;
   revokeForUser(userId: string, subscriptionId: string, revokedAt: string): Promise<PushSubscription | null>;
   revokeByEndpointForUser(userId: string, endpoint: string, revokedAt: string): Promise<PushSubscription | null>;
@@ -222,6 +223,16 @@ export class DrizzlePushSubscriptionRepository implements PushSubscriptionReposi
       .where(and(eq(pushSubscriptions.userId, userId), isNull(pushSubscriptions.revokedAt)));
 
     return rows.map(rowToPushSubscription).toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  async getActiveByEndpointForUser(userId: string, endpoint: string) {
+    const [row] = await this.db
+      .select()
+      .from(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint), isNull(pushSubscriptions.revokedAt)))
+      .limit(1);
+
+    return row ? rowToPushSubscription(row) : null;
   }
 
   async endpointStatusForUser(userId: string, endpoint: string): Promise<PushSubscriptionEndpointStatus> {

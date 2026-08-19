@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { notificationDeliveryLog, notificationPreferences, pushSubscriptions } from "../src/db/schema.ts";
 import {
   NotificationInfrastructureInputError,
@@ -29,7 +28,9 @@ import {
   revokePushSubscriptionEndpointForUser,
   revokePushSubscriptionForUser,
   saveNotificationPreferencesForUser,
+  sendTestPushForUser,
 } from "../src/lib/notification-infrastructure/service.ts";
+import type { PushSender } from "../src/lib/push/sender.ts";
 import type {
   NotificationDeliveryRepository,
   NotificationPreferenceRepository,
@@ -92,6 +93,11 @@ class MemoryPushSubscriptionRepository implements PushSubscriptionRepository {
     return row.revokedAt === null ? "active" : "same_user_revoked";
   }
 
+  async getActiveByEndpointForUser(userId: string, endpoint: string) {
+    const row = [...this.rows.values()].find((subscription) => subscription.userId === userId && subscription.endpoint === endpoint && subscription.revokedAt === null);
+    return row ? structuredClone(row) : null;
+  }
+
   async revokeForUser(userId: string, subscriptionId: string, revokedAt: string) {
     const row = this.rows.get(subscriptionId);
     if (!row || row.userId !== userId) return null;
@@ -133,15 +139,6 @@ class MemoryNotificationDeliveryRepository implements NotificationDeliveryReposi
 const userA = { id: "user-a" };
 const userB = { id: "user-b" };
 const read = (path: string) => readFileSync(path, "utf8");
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    const stats = statSync(path);
-    if (stats.isDirectory()) return sourceFiles(path);
-    return /\.(ts|tsx|js|md|json)$/.test(entry) ? [path] : [];
-  });
-}
 
 const ids = () => {
   let count = 0;
@@ -382,6 +379,92 @@ test("preference save keeps active push subscriptions unchanged", async () => {
   assert.equal(active[0]?.id, subscription.id);
 });
 
+test("test push transport sends only to the current active device without delivery-log writes", async () => {
+  const preferenceRepository = new MemoryNotificationPreferenceRepository();
+  const pushRepository = new MemoryPushSubscriptionRepository();
+  const deliveryRepository = new MemoryNotificationDeliveryRepository();
+  const createId = ids();
+  const current = await addPushSubscriptionForUser(pushRepository, userA, fakeSubscription("current-device"), createId, new Date("2026-08-15T10:00:00Z"));
+  const other = await addPushSubscriptionForUser(pushRepository, userA, fakeSubscription("other-device"), createId, new Date("2026-08-15T10:01:00Z"));
+  const revoked = await addPushSubscriptionForUser(pushRepository, userA, fakeSubscription("revoked-device"), createId, new Date("2026-08-15T10:02:00Z"));
+  await revokePushSubscriptionEndpointForUser(pushRepository, userA, { endpoint: revoked.endpoint }, new Date("2026-08-15T10:03:00Z"));
+  await saveNotificationPreferencesForUser(preferenceRepository, userA, { frost: false, watering: true, heat: true }, createId, new Date("2026-08-15T10:04:00Z"));
+
+  const sentIds: string[] = [];
+  const sender: PushSender = async (subscription, payload, vapid) => {
+    sentIds.push(subscription.id);
+    assert.equal(payload.type, "test");
+    assert.equal(payload.title, "Grobiggis");
+    assert.equal(payload.body, "Pushnotiser fungerar på den här enheten.");
+    assert.equal(payload.href, "/idag");
+    assert.equal(vapid.subject, "mailto:test@example.com");
+    return { ok: true, status: "sent", statusCode: 201 };
+  };
+
+  const result = await sendTestPushForUser(
+    pushRepository,
+    userA,
+    { endpoint: current.endpoint },
+    sender,
+    { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" },
+    new Date("2026-08-15T10:05:00Z"),
+  );
+
+  assert.deepEqual(result, { status: "sent" });
+  assert.deepEqual(sentIds, [current.id]);
+  assert.equal((await listActivePushSubscriptionsForUser(pushRepository, userA)).some((row) => row.id === other.id), true);
+  assert.equal((await listActivePushSubscriptionsForUser(pushRepository, userA)).some((row) => row.id === revoked.id), false);
+  assert.deepEqual(await getNotificationPreferencesForUser(preferenceRepository, userA), { frost: false, watering: true, heat: true });
+  assert.equal(deliveryRepository.rows.size, 0);
+});
+
+test("test push rejects client-owned authority and revoked or cross-user devices", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+  const active = await addPushSubscriptionForUser(repository, userA, fakeSubscription("owned-active"), createId, new Date("2026-08-15T10:00:00Z"));
+  const revoked = await addPushSubscriptionForUser(repository, userA, fakeSubscription("owned-revoked"), createId, new Date("2026-08-15T10:01:00Z"));
+  const otherUser = await addPushSubscriptionForUser(repository, userB, fakeSubscription("other-user"), createId, new Date("2026-08-15T10:02:00Z"));
+  await revokePushSubscriptionEndpointForUser(repository, userA, { endpoint: revoked.endpoint }, new Date("2026-08-15T10:03:00Z"));
+  const sender: PushSender = async () => {
+    throw new Error("revoked or cross-user subscriptions must not be sent");
+  };
+  const vapid = { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" };
+
+  await assert.rejects(() => sendTestPushForUser(repository, userA, { endpoint: active.endpoint, userId: "client-user" }, sender, vapid), NotificationInfrastructureInputError);
+  assert.deepEqual(await sendTestPushForUser(repository, userA, { endpoint: revoked.endpoint }, sender, vapid), { status: "subscription_invalid" });
+  assert.deepEqual(await sendTestPushForUser(repository, userA, { endpoint: otherUser.endpoint }, sender, vapid), { status: "subscription_invalid" });
+});
+
+test("test push invalidates only 404 and 410 endpoints", async () => {
+  const repository = new MemoryPushSubscriptionRepository();
+  const createId = ids();
+  const gone = await addPushSubscriptionForUser(repository, userA, fakeSubscription("gone"), createId, new Date("2026-08-15T10:00:00Z"));
+  const failing = await addPushSubscriptionForUser(repository, userA, fakeSubscription("server-fail"), createId, new Date("2026-08-15T10:01:00Z"));
+  const vapid = { subject: "mailto:test@example.com", publicKey: "public", privateKey: "private" };
+
+  const goneResult = await sendTestPushForUser(
+    repository,
+    userA,
+    { endpoint: gone.endpoint },
+    async () => ({ ok: false, status: "subscription_invalid", statusCode: 410 }),
+    vapid,
+    new Date("2026-08-15T10:02:00Z"),
+  );
+  assert.deepEqual(goneResult, { status: "subscription_invalid" });
+  assert.equal((await repository.getActiveByEndpointForUser(userA.id, gone.endpoint)), null);
+
+  const failedResult = await sendTestPushForUser(
+    repository,
+    userA,
+    { endpoint: failing.endpoint },
+    async () => ({ ok: false, status: "failed", statusCode: 500 }),
+    vapid,
+    new Date("2026-08-15T10:03:00Z"),
+  );
+  assert.deepEqual(failedResult, { status: "failed" });
+  assert.equal((await repository.getActiveByEndpointForUser(userA.id, failing.endpoint))?.id, failing.id);
+});
+
 test("cross-account endpoint conflicts stay opaque and cannot be silently reassigned", async () => {
   const repository = new MemoryPushSubscriptionRepository();
   const createId = ids();
@@ -444,18 +527,23 @@ test("ordinary pages and signal evaluation do not write delivery state or build 
   const weatherPage = read("src/app/vader/page.tsx");
   const notificationsServer = read("src/lib/notifications/server.ts");
   const signalsServer = read("src/lib/signals/server.ts");
-  const infrastructureServer = read("src/lib/notification-infrastructure/server.ts");
-  const infrastructureActions = read("src/lib/notification-infrastructure/actions.ts");
   const pushClient = read("src/lib/push/client.ts");
   const pushServer = read("src/lib/push/server.ts");
+  const pushSender = read("src/lib/push/sender.ts");
+  const pushPayload = read("src/lib/push/payload.ts");
   const profilePage = read("src/app/profil/page.tsx");
-  const publicSource = sourceFiles("public").map((file) => read(file)).join("\n");
+  const serviceWorker = read("public/sw.js");
 
   assert.doesNotMatch(`${todayPage}\n${weatherPage}\n${notificationsServer}\n${signalsServer}`, /recordNotification|notificationDelivery|pushSubscriptions|serviceWorker|PushManager|VAPID|Cron|Queue|scheduled|sendPush/i);
-  assert.doesNotMatch(`${infrastructureServer}\n${infrastructureActions}\n${pushServer}\n${pushClient}\n${profilePage}`, /sendWebPush|createVapidJwt|encryptPayload|deliverCandidate|processNotificationQueue|runNotificationCron|showNotification|notificationclick|fetch\(/i);
-  assert.match(publicSource, /skipWaiting/);
-  assert.match(publicSource, /clients\.claim/);
-  assert.doesNotMatch(publicSource, /showNotification|notificationclick|caches\.|fetch\(/i);
+  assert.doesNotMatch(`${pushServer}\n${pushClient}\n${profilePage}`, /createVapidJwt|encryptPayload|deliverCandidate|processNotificationQueue|runNotificationCron|showNotification|notificationclick|fetch\(/i);
+  assert.match(pushSender, /@block65\/webcrypto-web-push/);
+  assert.match(serviceWorker, /skipWaiting/);
+  assert.match(serviceWorker, /clients\.claim/);
+  assert.match(serviceWorker, /showNotification/);
+  assert.match(serviceWorker, /notificationclick/);
+  assert.doesNotMatch(`${pushSender}\n${pushPayload}\n${serviceWorker}`, /NotificationCandidate|buildNotificationCandidates|buildWeatherSignals|FrostAssessment|WaterAssessment|HeatAssessment/i);
+  assert.doesNotMatch(serviceWorker, /caches\.|addEventListener\(["']fetch["']/i);
+  assert.doesNotMatch(`${pushSender}\n${pushPayload}`, /notification_delivery_log|recordNotificationDelivery|recordDeliveredForUser/i);
 });
 
 test("profile UI copy is honest about future push notifications", () => {
@@ -481,7 +569,9 @@ test("profile UI copy is honest about future push notifications", () => {
   assert.match(form, /isExplicitPreferenceSave/);
   assert.match(pushCard, /onClick=\{activate\}[\s\S]*type="button"/);
   assert.match(pushCard, /onClick=\{deactivate\}[\s\S]*type="button"/);
+  assert.match(pushCard, /Skicka testnotis/);
+  assert.match(pushCard, /sendTestPushAction/);
   assert.match(actions, /revalidatePath\("\/profil"\)/);
   assert.doesNotMatch(`${page}\n${form}\n${actions}`, /Notification\.requestPermission|navigator\.serviceWorker|PushManager/i);
-  assert.doesNotMatch(combined, /sendWebPush|createVapidJwt|encryptPayload|delivery_log/i);
+  assert.doesNotMatch(combined, /createVapidJwt|encryptPayload|delivery_log/i);
 });

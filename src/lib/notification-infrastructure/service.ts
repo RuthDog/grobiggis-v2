@@ -12,6 +12,8 @@ import {
   type NotificationPreferenceSettings,
 } from "../../domain/notification-infrastructure.ts";
 import type { NotificationCandidate } from "../../domain/notification-policy.ts";
+import { testPushNotificationPayload } from "../push/payload.ts";
+import type { PushSender } from "../push/sender.ts";
 import type {
   NotificationDeliveryRepository,
   NotificationPreferenceRepository,
@@ -129,6 +131,33 @@ export async function revokePushSubscriptionEndpointForUser(
   const userId = assertNotificationUser(user);
   const { endpoint } = validateRevokePushSubscriptionInput(input);
   return repository.revokeByEndpointForUser(userId, endpoint, now.toISOString());
+}
+
+export async function sendTestPushForUser(
+  repository: PushSubscriptionRepository,
+  user: { id: string } | null | undefined,
+  input: unknown,
+  sendPush: PushSender,
+  vapid: { subject: string; publicKey: string; privateKey: string },
+  now: Date = new Date(),
+) {
+  const userId = assertNotificationUser(user);
+  const { endpoint } = validateRevokePushSubscriptionInput(input);
+  const subscription = await repository.getActiveByEndpointForUser(userId, endpoint);
+
+  if (!subscription) {
+    return { status: "subscription_invalid" as const };
+  }
+
+  const result = await sendPush(subscription, testPushNotificationPayload, vapid);
+  if (result.ok) return { status: "sent" as const };
+
+  if (result.status === "subscription_invalid") {
+    await repository.revokeByEndpointForUser(userId, endpoint, now.toISOString());
+    return { status: "subscription_invalid" as const };
+  }
+
+  return { status: "failed" as const };
 }
 
 export async function hasNotificationDeliveryForUser(

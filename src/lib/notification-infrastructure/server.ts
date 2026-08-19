@@ -12,7 +12,10 @@ import {
   getNotificationPreferencesForUser,
   revokePushSubscriptionEndpointForUser,
   saveNotificationPreferencesForUser,
+  sendTestPushForUser,
 } from "./service";
+import { getPushVapidKeysForRequest } from "@/lib/push/server";
+import { sendWebPushPayload } from "@/lib/push/sender";
 
 async function getNotificationInfrastructureDbForRequest() {
   const { env } = await getCloudflareContext({ async: true });
@@ -56,4 +59,15 @@ export async function ensureCurrentUserPushSubscriptionActive(input: unknown) {
 export async function revokeCurrentUserPushSubscription(input: unknown) {
   const user = await requireUser();
   return revokePushSubscriptionEndpointForUser(await getPushSubscriptionRepositoryForRequest(), user, input);
+}
+
+export async function sendCurrentUserTestPush(input: unknown) {
+  const user = await requireUser();
+  return sendTestPushForUser(
+    await getPushSubscriptionRepositoryForRequest(),
+    user,
+    input,
+    sendWebPushPayload,
+    await getPushVapidKeysForRequest(),
+  );
 }

@@ -10,6 +10,7 @@ import {
   ensureCurrentUserPushSubscriptionActive,
   registerCurrentUserPushSubscription,
   revokeCurrentUserPushSubscription,
+  sendCurrentUserTestPush,
   saveCurrentUserNotificationPreferences,
 } from "./server";
 
@@ -28,6 +29,10 @@ export type SyncPushSubscriptionActionResult =
 export type RevokePushSubscriptionActionResult =
   | { ok: true }
   | { ok: false; error: string };
+
+export type SendTestPushActionResult =
+  | { ok: true; status: "sent"; message: string }
+  | { ok: false; status: "subscription_invalid" | "failed"; message: string };
 
 function messageForError(error: unknown, fallback: string) {
   if (error instanceof NotificationInfrastructureInputError) return error.message;
@@ -96,5 +101,20 @@ export async function revokePushSubscriptionAction(input: unknown): Promise<Revo
       return { ok: false, error: "Du behöver logga in." };
     }
     return { ok: false, error: "Pushnotiser kunde inte stängas av på den här enheten." };
+  }
+}
+
+export async function sendTestPushAction(input: unknown): Promise<SendTestPushActionResult> {
+  try {
+    const result = await sendCurrentUserTestPush(input);
+    if (result.status === "sent") {
+      return { ok: true, status: "sent", message: "Testnotisen skickades." };
+    }
+    if (result.status === "subscription_invalid") {
+      return { ok: false, status: "subscription_invalid", message: "Pushnotiser behöver aktiveras på nytt på den här enheten." };
+    }
+    return { ok: false, status: "failed", message: "Testnotisen kunde inte skickas. Försök igen." };
+  } catch {
+    return { ok: false, status: "failed", message: "Testnotisen kunde inte skickas. Försök igen." };
   }
 }
